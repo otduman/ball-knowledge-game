@@ -1,4 +1,4 @@
-import type { Category } from './categories';
+import type { Category, CategoryGroup } from './categories';
 import { COL_CATEGORIES, GEOGRAPHIC_GROUPS, ROW_CATEGORIES } from './categories';
 import { poolFor } from './pools';
 import { hashString, mulberry32, shuffle } from './rng';
@@ -36,7 +36,22 @@ export interface GridConstraints {
   minGeographicRows: number;
   /** Rows from the same group (two decades, say) beyond this are rejected. */
   maxRowsPerGroup: number;
+  /**
+   * Per-group overrides. Letters are capped at one because there are 20 of them
+   * against 9 regions and 5 decades, so uniform sampling floods the board:
+   * before this cap they filled 40% of row slots and 34% of boards had two.
+   */
+  maxRowsByGroup: Partial<Record<CategoryGroup, number>>;
 }
+
+/**
+ * Football is the sport most players know best and has by far the deepest
+ * roster, so it headlines most boards instead of taking its uniform 60% share.
+ * One board in `PRIMARY_COLUMN_CYCLE` omits it, to keep the other four sports
+ * from becoming garnish.
+ */
+const PRIMARY_COLUMN_ID = 'sport:football';
+const PRIMARY_COLUMN_CYCLE = 6;
 
 export const DEFAULT_CONSTRAINTS: GridConstraints = {
   minPool: 6,
@@ -46,6 +61,7 @@ export const DEFAULT_CONSTRAINTS: GridConstraints = {
   maxWideCells: 1,
   minGeographicRows: 1,
   maxRowsPerGroup: 2,
+  maxRowsByGroup: { letter: 1 },
 };
 
 /** Progressively looser fallbacks, used only if the strict pass finds nothing. */
@@ -61,6 +77,7 @@ const RELAXATIONS: GridConstraints[] = [
     maxWideCells: 9,
     minGeographicRows: 0,
     maxRowsPerGroup: 3,
+    maxRowsByGroup: {},
   },
 ];
 
@@ -92,10 +109,11 @@ export function isFeasible(
   const geographic = rows.filter((r) => GEOGRAPHIC_GROUPS.includes(r.group)).length;
   if (geographic < constraints.minGeographicRows) return false;
 
-  const perGroup = new Map<string, number>();
+  const perGroup = new Map<CategoryGroup, number>();
   for (const row of rows) {
     const next = (perGroup.get(row.group) ?? 0) + 1;
-    if (next > constraints.maxRowsPerGroup) return false;
+    const cap = constraints.maxRowsByGroup[row.group] ?? constraints.maxRowsPerGroup;
+    if (next > cap) return false;
     perGroup.set(row.group, next);
   }
 
@@ -142,6 +160,7 @@ function constraintKey(c: GridConstraints): string {
     c.maxWideCells,
     c.minGeographicRows,
     c.maxRowsPerGroup,
+    JSON.stringify(c.maxRowsByGroup),
   ].join(':');
 }
 
@@ -189,10 +208,33 @@ export function buildGrid(number: number, variant = 0): Grid {
   }
 
   const ordinal = Math.max(0, (number - 1) * 8 + variant);
-  const cycle = Math.floor(ordinal / pool.length);
-  const indexInCycle = ordinal % pool.length;
-  const order = permutationFor(pool, cycle, constraintKey(usedConstraints));
-  const picked = order[indexInCycle] as { rows: Category[]; cols: Category[] };
+  const key = constraintKey(usedConstraints);
+
+  // Split the catalogue by whether it features the primary sport, then walk
+  // each side on its own permutation. Weighting this way keeps the "no repeat
+  // until exhausted" guarantee inside each partition, which duplicating
+  // entries in a single list would have broken.
+  const withPrimary = pool.filter((g) => g.cols.some((c) => c.id === PRIMARY_COLUMN_ID));
+  const withoutPrimary = pool.filter((g) => !g.cols.some((c) => c.id === PRIMARY_COLUMN_ID));
+
+  const cycleLength = PRIMARY_COLUMN_CYCLE + 1;
+  const wantsOther = ordinal % cycleLength === cycleLength - 1;
+  const othersBefore = Math.floor(ordinal / cycleLength);
+
+  let partition = withPrimary;
+  let index = ordinal - othersBefore;
+  let partitionKey = `${key}#primary`;
+
+  if ((wantsOther && withoutPrimary.length > 0) || withPrimary.length === 0) {
+    partition = withoutPrimary;
+    index = othersBefore;
+    partitionKey = `${key}#other`;
+  }
+  if (partition.length === 0) partition = pool;
+
+  const cycle = Math.floor(index / partition.length);
+  const order = permutationFor(partition, cycle, partitionKey);
+  const picked = order[index % partition.length] as { rows: Category[]; cols: Category[] };
 
   const layoutRng = mulberry32(hashString(`layout:${number}:${variant}`));
   return {

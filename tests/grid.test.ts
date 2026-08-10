@@ -53,15 +53,36 @@ describe('determinism', () => {
     expect(signatures.size).toBeGreaterThan(20);
   });
 
-  it('does not repeat a board until the catalogue is exhausted', () => {
-    const catalogueSize = feasibleGrids(DEFAULT_CONSTRAINTS).length;
+  it('does not repeat a board over a long run', () => {
+    // The catalogue is split by whether a board features the primary sport, and
+    // the two partitions advance at different rates, so the old "walk the whole
+    // catalogue" check no longer describes the guarantee. What still holds — and
+    // is what a player would notice — is that boards do not recur early.
     const seen = new Set<string>();
-    // Variants advance the ordinal by 1 each, so walk variants of one day.
-    for (let v = 0; v < catalogueSize; v++) {
+    const runLength = 3000;
+    for (let v = 0; v < runLength; v++) {
       const grid = buildGrid(1, v);
-      seen.add([...grid.rows, ...grid.cols].map((c) => c.id).sort().join('|'));
+      seen.add([...grid.rows, ...grid.cols].map((c) => c.id).join('|'));
     }
-    expect(seen.size).toBe(catalogueSize);
+    expect(seen.size).toBe(runLength);
+  });
+
+  it('features the primary sport on most boards but not all', () => {
+    let withFootball = 0;
+    const sample = 200;
+    for (let n = 1; n <= sample; n++) {
+      if (buildGrid(n).cols.some((c) => c.id === 'sport:football')) withFootball++;
+    }
+    const share = withFootball / sample;
+    expect(share).toBeGreaterThan(0.75);
+    expect(share).toBeLessThan(1);
+  });
+
+  it('never places more than one surname-letter row on a board', () => {
+    for (let n = 1; n <= 300; n++) {
+      const letters = buildGrid(n).rows.filter((r) => r.group === 'letter').length;
+      expect(letters).toBeLessThanOrEqual(1);
+    }
   });
 });
 

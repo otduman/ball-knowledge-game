@@ -1,5 +1,6 @@
 import { athleteById } from '../data/rosters';
 import type { Athlete } from '../data/types';
+import type { Category } from '../engine/categories';
 import type { GameState } from '../engine/game';
 import type { Grid } from '../engine/grid';
 import { cellKey, poolDepth, poolFor } from '../engine/pools';
@@ -82,6 +83,37 @@ function openCellNode(
   return button;
 }
 
+/**
+ * Only ambiguous headings become buttons. "Spain" and "Surname F" say what they
+ * mean, so decorating every heading with an affordance was noise that buried
+ * the one case ("Southern Europe") where it mattered.
+ */
+function headingNode(
+  category: Category,
+  className: string,
+  labelClass: string,
+  handlers: BoardHandlers,
+): HTMLElement {
+  const label = el('span', { className: labelClass, text: category.label });
+
+  if (!category.explain) {
+    const plain = el('div', { className: `${className} plain` });
+    plain.append(label);
+    return plain;
+  }
+
+  const button = el('button', {
+    className,
+    attrs: { type: 'button', 'aria-label': `${category.label}. What counts: ${category.hint}` },
+  });
+  button.append(label);
+  if (category.shortHint) {
+    button.append(el('span', { className: 'sub', text: category.shortHint }));
+  }
+  button.addEventListener('click', () => handlers.onExplain(category.id));
+  return button;
+}
+
 export function renderBoard(
   container: HTMLElement,
   grid: Grid,
@@ -95,23 +127,11 @@ export function renderBoard(
   container.append(corner);
 
   for (const col of grid.cols) {
-    const head = el('button', {
-      className: 'head',
-      attrs: { type: 'button', 'aria-label': `${col.label}. What counts: ${col.hint}` },
-    });
-    head.append(el('span', { className: 'txt', text: col.label }));
-    head.addEventListener('click', () => handlers.onExplain(col.id));
-    container.append(head);
+    container.append(headingNode(col, 'head', 'txt', handlers));
   }
 
   for (const row of grid.rows) {
-    const rowHead = el('button', {
-      className: 'rowhead',
-      attrs: { type: 'button', 'aria-label': `${row.label}. What counts: ${row.hint}` },
-    });
-    rowHead.append(el('span', { className: 'lbl', text: row.label }));
-    rowHead.addEventListener('click', () => handlers.onExplain(row.id));
-    container.append(rowHead);
+    container.append(headingNode(row, 'rowhead', 'lbl', handlers));
 
     for (const col of grid.cols) {
       const key = cellKey(row.id, col.id);

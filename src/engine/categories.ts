@@ -25,7 +25,22 @@ export interface Category {
    * where Spain actually sits before spending a guess.
    */
   hint: string;
+  /**
+   * Whether the label needs explaining at all. "Spain" and "Surname F" say
+   * exactly what they mean; "Southern Europe" does not. Only ambiguous
+   * headings get a subtitle and a tappable panel — putting one on every
+   * heading was noise that buried the case that actually mattered.
+   */
+  explain: boolean;
+  /** Compact form of `hint`, rendered under the heading when `explain`. */
+  shortHint?: string;
   matches(athlete: Athlete): boolean;
+}
+
+/** "Spain, Italy, Portugal +2" — the gutter cannot hold 22 country names. */
+function condense(items: string[], keep: number): string {
+  if (items.length <= keep) return items.join(', ');
+  return `${items.slice(0, keep).join(', ')} +${items.length - keep}`;
 }
 
 /** A row must clear this in at least `MIN_VIABLE_COLUMNS` sports to be usable. */
@@ -67,6 +82,8 @@ export const REGION_CATEGORIES: readonly Category[] = REGIONS.map((region) => ({
   axis: 'row' as const,
   group: 'region' as const,
   hint: rosterCountriesIn(region.id).join(', '),
+  explain: true,
+  shortHint: condense(rosterCountriesIn(region.id), 3),
   matches: (athlete: Athlete) => athlete.region === region.id,
 }));
 
@@ -85,6 +102,7 @@ export const COUNTRY_CATEGORIES: readonly Category[] = [...new Set(ATHLETES.map(
     axis: 'row' as const,
     group: 'country' as const,
     hint: `Represented ${country}`,
+    explain: false,
     matches: (athlete: Athlete) => athlete.country === country,
   }))
   .filter((category) => isViableRow(category.matches));
@@ -110,6 +128,7 @@ export const ERA_CATEGORIES: readonly Category[] = ERA_BANDS.map((band) => ({
       : band.min === 0
         ? `Born before ${band.max}`
         : `Born between ${band.min} and ${band.max - 1}`,
+  explain: false,
   matches: (athlete: Athlete) =>
     athlete.birthYear !== undefined && athlete.birthYear >= band.min && athlete.birthYear < band.max,
 }));
@@ -128,6 +147,7 @@ export const LETTER_CATEGORIES: readonly Category[] = [...'abcdefghijklmnopqrstu
     axis: 'row' as const,
     group: 'letter' as const,
     hint: `Family name starts with ${letter.toUpperCase()}`,
+    explain: false,
     matches: (athlete: Athlete) => surnameInitial(athlete.name) === letter,
   }))
   .filter((category) => isViableRow(category.matches));
@@ -148,6 +168,7 @@ export const SPORT_CATEGORIES: readonly Category[] = SPORTS.map((sport) => ({
   axis: 'col' as const,
   group: 'sport' as const,
   hint: SPORT_HINTS[sport.id],
+  explain: true,
   matches: (athlete: Athlete) => athlete.sport === sport.id,
 }));
 

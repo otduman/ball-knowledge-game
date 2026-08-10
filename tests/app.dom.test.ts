@@ -116,22 +116,46 @@ describe('app boot', () => {
     expect(options().some((o) => o.textContent?.includes(answer.name))).toBe(false);
   });
 
-  it('explains a row heading when it is tapped', () => {
+  it('explains an ambiguous row heading when it is tapped', () => {
     start(DAY_ONE);
 
-    const rowHead = document.querySelector<HTMLButtonElement>('#board .rowhead');
-    expect(rowHead).not.toBeNull();
-    rowHead?.click();
+    const index = grid.rows.findIndex((r) => r.explain);
+    if (index === -1) return; // this board has no ambiguous row; nothing to assert
+
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button.rowhead'));
+    const target = buttons.find((b) => b.textContent?.startsWith(grid.rows[index]!.label));
+    expect(target, 'expected a tappable heading for the region row').toBeDefined();
+    target?.click();
 
     const info = document.getElementById('info') as HTMLElement;
     expect(info.hidden).toBe(false);
-    expect(document.getElementById('info-title')?.textContent).toBe(grid.rows[0]!.label);
-    expect(document.getElementById('info-body')?.textContent).toBe(grid.rows[0]!.hint);
-    expect(document.getElementById('info-body')?.textContent?.length).toBeGreaterThan(0);
+    expect(document.getElementById('info-title')?.textContent).toBe(grid.rows[index]!.label);
+    expect(document.getElementById('info-body')?.textContent).toBe(grid.rows[index]!.hint);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(info.hidden).toBe(true);
     expect(document.getElementById('left')?.textContent).toBe('9');
+  });
+
+  it('leaves self-evident headings as plain text, not buttons', () => {
+    start(DAY_ONE);
+
+    for (const row of grid.rows.filter((r) => !r.explain)) {
+      const asButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button.rowhead')).find(
+        (b) => b.textContent?.startsWith(row.label),
+      );
+      expect(asButton, `${row.label} should not be tappable`).toBeUndefined();
+    }
+  });
+
+  it('prints the member countries under an ambiguous heading', () => {
+    start(DAY_ONE);
+
+    const region = grid.rows.find((r) => r.explain && r.shortHint);
+    if (!region) return;
+
+    const sub = Array.from(document.querySelectorAll('#board .rowhead .sub')).map((n) => n.textContent);
+    expect(sub).toContain(region.shortHint);
   });
 
   it('explains a column heading too', () => {

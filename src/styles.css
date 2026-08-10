@@ -156,12 +156,34 @@ h1 span {
   outline-offset: 2px;
 }
 
-/* The dotted underline is the affordance: headings are explainable, not just
-   labels. Without it nobody discovers that "Southern Europe" can be queried. */
-.head .txt,
-.rowhead .lbl {
+/* Only headings that need explaining carry the affordance. Self-evident ones
+   ("Spain", "Surname F") render as plain text with no cursor or underline. */
+.head.plain,
+.rowhead.plain {
+  cursor: default;
+}
+button.head .txt,
+button.rowhead .lbl {
   border-bottom: 1.5px dotted rgba(22, 17, 15, 0.45);
   padding-bottom: 1px;
+}
+
+/* The member countries, inline under the heading — the explanation belongs on
+   the board, not hidden behind a tap. */
+.rowhead .sub,
+.head .sub {
+  display: block;
+  font-family: var(--mono);
+  font-size: 7.5px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-soft);
+  margin-top: 3px;
+  font-weight: 400;
+}
+.head .sub {
+  display: none; /* column gutter has no vertical room */
 }
 
 .rowhead {
