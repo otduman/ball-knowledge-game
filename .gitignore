@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+coverage/
+
+# Personal permission overrides. .claude/settings.json is shared and tracked;
+# settings.local.json is per-machine and is not.
+.claude/settings.local.json

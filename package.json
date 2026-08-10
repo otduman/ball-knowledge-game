@@ -1,0 +1,22 @@
+{
+  "name": "ball-knowledge-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Nine cells, nine guesses. A daily region x sport sports-trivia grid.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7"
+  }
+}

@@ -1,0 +1,9 @@
+# Normalise line endings in the repository to LF, regardless of platform.
+# Without this, editing on Windows rewrites whole files as CRLF and every diff
+# looks like a full rewrite — which would be especially painful for the roster
+# files and the generated enrichment.json.
+* text=auto eol=lf
+
+# Generated, single-line and not meaningfully diffable by hand.
+src/data/enrichment.json linguist-generated=true
+package-lock.json        linguist-generated=true

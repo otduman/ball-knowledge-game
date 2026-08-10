@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(curl *)",
+      "Bash(jq *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(awk *)",
+      "Bash(sed *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(netstat *)",
+      "Bash(taskkill *)",
+      "Bash(rm -f /tmp/*)",
+      "Bash(rm -f scripts/*)",
+      "Bash(rm -rf node_modules*)",
+      "Bash(rm -rf dist*)",
+      "Bash(rm -f package-lock.json)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf C:/*)",
+      "Bash(git push --force*)",
+      "Bash(npm publish*)"
+    ]
+  }
+}
