@@ -1,6 +1,7 @@
 import type { GameState } from './game';
 import { solvedCount, totalScore } from './game';
 import type { Grid } from './grid';
+import { cellCount } from './grid';
 import { cellKey } from './pools';
 
 const HIT = '\u{1F7E9}';
@@ -14,7 +15,7 @@ export function buildShareText(grid: Grid, state: GameState): string {
   const solved = solvedCount(state);
   const score = totalScore(state);
 
-  const lines = [`Ball Knowledge ${grid.label} — ${solved}/9 · ${score} pts`];
+  const lines = [`Ball Knowledge ${grid.label} — ${solved}/${cellCount(grid)} · ${score} pts`];
   for (const row of grid.rows) {
     lines.push(grid.cols.map((col) => (state.solved[cellKey(row.id, col.id)] ? HIT : MISS)).join(''));
   }

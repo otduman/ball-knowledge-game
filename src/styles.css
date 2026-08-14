@@ -109,12 +109,41 @@ h1 span {
   color: var(--ink);
 }
 
+/* ---- mode switch ---- */
+.modes {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+.modes button {
+  flex: 1;
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 9px 8px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.modes button[aria-pressed='true'] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.modes button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* ---- board ---- */
 .board {
   display: grid;
   /* Row gutter is wider than a cell: attribute rows ("Born pre-1970") need
-     noticeably more room than the old region-only labels did. */
-  grid-template-columns: 1.32fr 1fr 1fr 1fr;
+     noticeably more room than the old region-only labels did. The column count
+     is set from the grid, since the duel board is two columns wide. */
+  grid-template-columns: 1.32fr repeat(3, 1fr);
   gap: 5px;
 }
 

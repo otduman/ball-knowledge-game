@@ -1,19 +1,24 @@
 # Ball Knowledge
 
-A daily sports trivia grid. Nine cells, nine guesses: name an athlete who fits
-both the row and the column. Rarer names score more, so filling the board is
-only half the game.
+A daily sports trivia grid. One guess per cell: name an athlete who fits both
+the row and the column. Rarer names score more, so filling the board is only
+half the game.
 
 ```
-                 FOOTBALL    TENNIS   FORMULA 1
-NORTH AMERICA       +           +          +
-SPAIN               +           +          +
-SURNAME F           +           +          +
+   DAILY 3x3                            DUEL 2x3
+                 FOOTBALL  TENNIS  F1                 FOOTBALL   NBA
+NORTH AMERICA       +         +     +    BORN PRE-1970    +       +
+SPAIN               +         +     +    TURKIYE          +       +
+SURNAME F           +         +     +    DEEP CUT         +       +
 ```
 
 Rows mix regions, countries, birth decades, Wikipedia reach, origin stories
 (dual nationals, capital-born, shared birth cities), name shapes and surname
 initials; columns are sports, and which three appear changes day to day.
+
+**Two modes.** The daily 3×3 draws from all five sports. The **duel** is a
+two-column Football × NBA board with three rows, six cells and no easy squares —
+see [Why the duel is harder, not just smaller](#why-the-duel-is-harder-not-just-smaller).
 
 **Ambiguous headings explain themselves.** "Southern Europe" quietly includes
 Spain and Portugal, and a player has no way to know that before spending a
@@ -26,7 +31,7 @@ guessing. Self-evident headings ("Spain", "Surname F") get none of that.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 87 tests
+npm test           # 102 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
@@ -58,7 +63,9 @@ same player can drift between classifications.
 Here each athlete is a record, and categories are predicates over those records.
 A cell's pool is the intersection of two of them. This is what made tennis cheap
 to add — one roster file plus one line in `sports.ts`, no engine changes — and
-what makes a new axis a matter of adding categories.
+what makes a new axis a matter of adding categories. A whole *mode* is a row
+count, a column count, a list of sports and a difficulty budget: see
+[modes.ts](src/engine/modes.ts).
 
 Rosters live in [src/data/rosters/](src/data/rosters/) as pipe-delimited text:
 
@@ -88,9 +95,15 @@ Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 
 `country → region` resolves through one table in [regions.ts](src/data/regions.ts),
 so classification is auditable in one place. Country and letter rows are
-**generated, not hand-listed**: a row only exists if it can field six answers in
-at least three sports, so the set grows with the roster and can never contain a
-heading no grid can use.
+**generated, not hand-listed**: the set grows with the roster and can never
+contain a heading no grid can use.
+
+Viability is asked per mode, not once. A mode with fixed columns names them and
+gets the rows that work in exactly those; a mode whose columns vary asks for rows
+that work in at least as many sports as it has columns. That is why the duel can
+use Greece, Nigeria, Türkiye and Surname I — rows with plenty of footballers and
+NBA players and almost nothing anywhere else, which the daily board's
+three-column rule correctly discards.
 
 Three rules keep rows honest:
 
@@ -154,7 +167,41 @@ produced boards that felt alike:
   than its uniform 60%, while one board in seven still omits it.
 
 Puzzle numbers count UTC days from `EPOCH_UTC`, so everyone gets the same board
-on the same day, and progress survives a reload via `localStorage`.
+on the same day, and progress survives a reload via `localStorage`. Each mode
+saves under its own key and resumes independently.
+
+**Daily boards take the front of the index space, one per puzzle number.** The
+obvious `(number - 1) * 8 + variant` is dense over all boards but makes the daily
+track a stride-8 subsequence, and the round-robin over board shapes reads
+`index % shapeCount`. Whenever that stride shares a factor with the shape count
+the round-robin collapses: the duel has 16 shapes, its daily track visited two of
+them, and a board recurred every 62 days.
+
+### Why the duel is harder, not just smaller
+
+Football and the NBA are the two deepest rosters in the game, so a two-column
+board built on the daily settings is *easier* than the daily board, not harder.
+Difficulty is bought explicitly:
+
+- **No near-free square at all.** The daily board budgets one cell of 150+
+  answers; the duel bans anything over 70. Median cell: **20 against the daily
+  25**, worst cell 68 against 245.
+- **Three different kinds of row, always.** A duel board can never be three
+  variations on where someone is from.
+
+That budget excludes two whole row families, by measurement rather than by
+taste. Every origin row is too broad across these two sports — "Shares a birth
+city" alone offers 243 footballers, "Born in a capital" 105 — and so are era's
+three middle bands, of which "Born 1990s" offers 245. What survives is 56 rows in
+six groups and **2231 boards**, with airtime spread country 21%, letters 21%,
+decades 17%, regions 16%, reach 13%, name shapes 13%.
+
+One consequence is worth knowing: the duel catalogue has shapes holding two
+boards against shapes holding six hundred, and equal airtime is only free while
+every shape can sustain it — handing a two-board shape a full 1-in-20 slot
+recycled it every 40 boards. Shapes thinner than 25 boards are pooled instead.
+Nothing in the daily catalogue is that thin (its smallest holds 76), so the rule
+is inert there. The duel now runs **423 days** before a board recurs.
 
 ## Enrichment pipeline
 
@@ -170,6 +217,7 @@ npx vite-node scripts/analyze-axes.ts      # country vs region row depth
 npx vite-node scripts/letters-and-balance.ts  # letter viability and sport balance
 npx vite-node scripts/probe-axes.ts        # data coverage for candidate new axes
 npx vite-node scripts/probe-gender.ts      # women per sport (see its caveat)
+npx vite-node scripts/probe-duel.ts        # duel rows, difficulty, airtime, repeat horizon
 ```
 
 `enrichment.json` is **generated — do not hand-edit it**. It is committed so
@@ -219,10 +267,10 @@ Eastern Europe, matching UEFA. All of it lives in one table.
 ```
 src/
   data/         rosters, regions, sports, parser, generated enrichment
-  engine/       rng, categories, pools, grid, game, scoring, search, storage, share
+  engine/       rng, categories, modes, pools, grid, game, scoring, search, storage, share
   ui/           board, picker sheet, results, app wiring
 scripts/        enrichment and data-analysis tools (not part of the build)
-tests/          data integrity, enrichment, grid feasibility, game rules, search, DOM
+tests/          data integrity, enrichment, grid feasibility, duel mode, game rules, search, DOM
 ```
 
 The engine has no DOM dependency and the UI holds no game rules.
@@ -231,6 +279,10 @@ board through actual clicks, catching markup drift a typecheck cannot.
 
 ## Ideas not yet built
 
+- **Unlockable difficulty layers.** A layer is an allowed set of category groups
+  plus a `minPool` floor — both already fields on a mode, so the machinery
+  exists. Early layers stay wide (regions and countries at 15+ answers a cell);
+  later ones unlock the name-shape and origin rows and drop the floor to 4.
 - **Champion row.** "Won the sport's top prize", resolving per column — World
   Cup for football, a Grand Slam for tennis, the drivers' title for F1. The row
   label must resolve to the concrete trophy in the picker, or players will type
@@ -248,5 +300,10 @@ board through actual clicks, catching markup drift a typecheck cannot.
   trademarks, so custom pictograms are the safer route.
 - **Measured rarity.** Replace hand-tuned `pop` with what players actually guess.
 
-Rejected with reasons: **handedness** (21% coverage, and zero for UFC) and
-**height rows** (guessing, not knowing).
+Rejected with reasons: **handedness** (21% coverage, and zero for UFC),
+**height rows** (guessing, not knowing), and **cross-sport clubs** — the row that
+originally motivated the duel. Real Madrid's football and basketball sections are
+separate Wikidata items with no shared parent, and across a 240-athlete sample
+exactly one club QID was naturally shared. Real Madrid works with hand-mapped
+QIDs; Barcelona, Bayern, Beşiktaş, Fenerbahçe and Benfica all appear in both
+sports and none reaches six on both sides. That is one row, not a family.

@@ -70,16 +70,27 @@ function rosterCountriesIn(regionId: string): string[] {
 }
 
 /**
- * Keeps a generated row out of the catalogue unless it can fill three columns.
- * Without this the board could offer a heading that no valid grid can ever use.
+ * Which sports a row can actually field a cell in. This is the fact every mode
+ * filter is built on: the daily board needs three, the Football x NBA duel needs
+ * exactly those two — and a row that fields six footballers and six NBA players
+ * but nothing else is useless to the first and perfect for the second.
  */
-function isViableRow(matches: (a: Athlete) => boolean): boolean {
-  let viable = 0;
+function viableSportsFor(matches: (a: Athlete) => boolean): ReadonlySet<SportId> {
+  const out = new Set<SportId>();
   for (const sport of SPORTS) {
     const count = ATHLETES.filter((a) => a.sport === sport.id && matches(a)).length;
-    if (count >= MIN_POOL) viable++;
+    if (count >= MIN_POOL) out.add(sport.id);
   }
-  return viable >= MIN_VIABLE_COLUMNS;
+  return out;
+}
+
+/**
+ * Keeps a generated row out of the daily catalogue unless it can fill three
+ * columns. Without this the board could offer a heading that no valid grid can
+ * ever use.
+ */
+function isViableRow(matches: (a: Athlete) => boolean): boolean {
+  return viableSportsFor(matches).size >= MIN_VIABLE_COLUMNS;
 }
 
 // ---- regions -------------------------------------------------------------
@@ -102,7 +113,7 @@ export const REGION_CATEGORIES: readonly Category[] = REGIONS.map((region) => ({
  * row is sharper than its region ("Spain × Formula 1" beats "Southern Europe ×
  * Formula 1"), and it sidesteps the region-boundary ambiguity entirely.
  */
-export const COUNTRY_CATEGORIES: readonly Category[] = [...new Set(ATHLETES.map((a) => a.country))]
+const COUNTRY_CANDIDATES: readonly Category[] = [...new Set(ATHLETES.map((a) => a.country))]
   .sort()
   .map((country) => ({
     id: `country:${country.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
@@ -112,8 +123,11 @@ export const COUNTRY_CATEGORIES: readonly Category[] = [...new Set(ATHLETES.map(
     hint: `Represented ${country}`,
     explain: false,
     matches: (athlete: Athlete) => athlete.country === country,
-  }))
-  .filter((category) => isViableRow(category.matches));
+  }));
+
+export const COUNTRY_CATEGORIES: readonly Category[] = COUNTRY_CANDIDATES.filter((c) =>
+  isViableRow(c.matches),
+);
 
 // ---- era -----------------------------------------------------------------
 
@@ -148,7 +162,7 @@ export const ERA_CATEGORIES: readonly Category[] = ERA_BANDS.map((band) => ({
  * for no extra interest — "A-C x Football" offers 115 valid answers where "M x
  * Football" offers 56 — and single letters give 20 rows instead of 7.
  */
-export const LETTER_CATEGORIES: readonly Category[] = [...'abcdefghijklmnopqrstuvwxyz']
+const LETTER_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvwxyz']
   .map((letter) => ({
     id: `letter:${letter}`,
     label: `Surname ${letter.toUpperCase()}`,
@@ -157,8 +171,11 @@ export const LETTER_CATEGORIES: readonly Category[] = [...'abcdefghijklmnopqrstu
     hint: `Family name starts with ${letter.toUpperCase()}`,
     explain: false,
     matches: (athlete: Athlete) => surnameInitial(athlete.name) === letter,
-  }))
-  .filter((category) => isViableRow(category.matches));
+  }));
+
+export const LETTER_CATEGORIES: readonly Category[] = LETTER_CANDIDATES.filter((c) =>
+  isViableRow(c.matches),
+);
 
 // ---- Wikipedia reach -----------------------------------------------------
 
@@ -246,7 +263,7 @@ const SHARED_BIRTH_CITIES: ReadonlySet<string> = (() => {
   return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([city]) => city));
 })();
 
-export const ORIGIN_CATEGORIES: readonly Category[] = ORIGIN_ROWS.map((row) => ({
+const ORIGIN_CANDIDATES: readonly Category[] = ORIGIN_ROWS.map((row) => ({
   id: `origin:${row.id}`,
   label: row.label,
   axis: 'row' as const,
@@ -255,7 +272,11 @@ export const ORIGIN_CATEGORIES: readonly Category[] = ORIGIN_ROWS.map((row) => (
   explain: true,
   shortHint: row.hint,
   matches: row.matches,
-})).filter((category) => isViableRow(category.matches));
+}));
+
+export const ORIGIN_CATEGORIES: readonly Category[] = ORIGIN_CANDIDATES.filter((c) =>
+  isViableRow(c.matches),
+);
 
 // ---- name shapes ---------------------------------------------------------
 
@@ -332,7 +353,7 @@ const SHARED_SURNAMES: ReadonlySet<string> = (() => {
   return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name));
 })();
 
-export const NAME_CATEGORIES: readonly Category[] = NAME_ROWS.map((row) => ({
+const NAME_CANDIDATES: readonly Category[] = NAME_ROWS.map((row) => ({
   id: `name:${row.id}`,
   label: row.label,
   axis: 'row' as const,
@@ -341,7 +362,11 @@ export const NAME_CATEGORIES: readonly Category[] = NAME_ROWS.map((row) => ({
   explain: true,
   shortHint: row.hint,
   matches: row.matches,
-})).filter((category) => isViableRow(category.matches));
+}));
+
+export const NAME_CATEGORIES: readonly Category[] = NAME_CANDIDATES.filter((c) =>
+  isViableRow(c.matches),
+);
 
 // ---- sports (columns) ----------------------------------------------------
 
@@ -368,19 +393,64 @@ export const SPORT_CATEGORIES: readonly Category[] = SPORTS.map((sport) => ({
 /** Rows that count as geographic, for the "every board has a place" rule. */
 export const GEOGRAPHIC_GROUPS: readonly CategoryGroup[] = ['region', 'country'];
 
-export const ROW_CATEGORIES: readonly Category[] = [
+/**
+ * Every row the generators produced, before any mode narrows them down. The
+ * three-column rule that shapes the daily board would throw away exactly the
+ * rows a two-column mode wants — Serbia fields six footballers and plenty of
+ * NBA players and nothing else, which is a dead row on a 3x3 and a good one on
+ * a Football x NBA duel.
+ */
+const ROW_CANDIDATES: readonly Category[] = [
   ...REGION_CATEGORIES,
-  ...COUNTRY_CATEGORIES,
+  ...COUNTRY_CANDIDATES,
   ...ERA_CATEGORIES,
   ...REACH_CATEGORIES,
-  ...ORIGIN_CATEGORIES,
-  ...NAME_CATEGORIES,
-  ...LETTER_CATEGORIES,
+  ...ORIGIN_CANDIDATES,
+  ...NAME_CANDIDATES,
+  ...LETTER_CANDIDATES,
 ];
+
+const VIABLE_SPORTS: ReadonlyMap<string, ReadonlySet<SportId>> = new Map(
+  ROW_CANDIDATES.map((row) => [row.id, viableSportsFor(row.matches)] as const),
+);
+
+/**
+ * Rows a mode can use: ones that can fill a cell in every sport it shows.
+ *
+ * A mode with fixed columns names them, and gets the rows viable in exactly
+ * those two. A mode whose columns vary cannot name them, so it asks instead for
+ * rows viable in at least as many sports as it has columns — anything narrower
+ * would be a heading some boards could not fill.
+ */
+export function rowsForSports(
+  sportIds: readonly SportId[],
+  minViableSports = MIN_VIABLE_COLUMNS,
+): readonly Category[] {
+  return ROW_CANDIDATES.filter((row) => {
+    const viable = VIABLE_SPORTS.get(row.id);
+    if (viable === undefined) return false;
+    return sportIds.length > 0
+      ? sportIds.every((id) => viable.has(id))
+      : viable.size >= minViableSports;
+  });
+}
+
+/** Sport columns a mode may use; an empty list means every sport. */
+export function colsForSports(sportIds: readonly SportId[]): readonly Category[] {
+  if (sportIds.length === 0) return SPORT_CATEGORIES;
+  return SPORT_CATEGORIES.filter((col) => sportIds.some((id) => col.id === `sport:${id}`));
+}
+
+/** The daily board's row set: anything that can fill three of the five columns. */
+export const ROW_CATEGORIES: readonly Category[] = ROW_CANDIDATES.filter(
+  (row) => (VIABLE_SPORTS.get(row.id)?.size ?? 0) >= MIN_VIABLE_COLUMNS,
+);
 
 export const COL_CATEGORIES: readonly Category[] = SPORT_CATEGORIES;
 
-export const ALL_CATEGORIES: readonly Category[] = [...ROW_CATEGORIES, ...COL_CATEGORIES];
+// Every candidate, not just the daily set — the pool index is keyed off this,
+// and a duel-only row with no pool entry would silently read as empty.
+export const ALL_CATEGORIES: readonly Category[] = [...ROW_CANDIDATES, ...SPORT_CATEGORIES];
 
 const BY_ID = new Map<string, Category>(ALL_CATEGORIES.map((c) => [c.id, c]));
 

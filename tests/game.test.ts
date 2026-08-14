@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { ATHLETES } from '../src/data/rosters';
 import {
-  STARTING_GUESSES,
   applyGuess,
   createGame,
   missedCells,
   solvedCount,
+  startingGuesses,
   totalScore,
 } from '../src/engine/game';
-import { buildGrid } from '../src/engine/grid';
+import { buildGrid, cellCount } from '../src/engine/grid';
 import { poolFor } from '../src/engine/pools';
 import { rarityScore } from '../src/engine/scoring';
 import { buildShareText } from '../src/engine/share';
 
 const grid = buildGrid(7);
+const GUESSES = startingGuesses(grid);
 const firstRow = grid.rows[0]!;
 const firstCol = grid.cols[0]!;
 const correctAthlete = poolFor(firstRow, firstCol)[0]!;
@@ -35,7 +36,7 @@ describe('applyGuess', () => {
     expect(outcome.points).toBe(rarityScore(correctAthlete));
     expect(solvedCount(outcome.state)).toBe(1);
     expect(totalScore(outcome.state)).toBe(rarityScore(correctAthlete));
-    expect(outcome.state.guessesLeft).toBe(STARTING_GUESSES - 1);
+    expect(outcome.state.guessesLeft).toBe(GUESSES - 1);
   });
 
   it('costs a guess on a miss without filling the cell', () => {
@@ -43,7 +44,7 @@ describe('applyGuess', () => {
     const outcome = applyGuess(grid, createGame(grid), firstRow.id, firstCol.id, wrong.id);
 
     expect(outcome.kind).toBe('miss');
-    expect(outcome.state.guessesLeft).toBe(STARTING_GUESSES - 1);
+    expect(outcome.state.guessesLeft).toBe(GUESSES - 1);
     expect(solvedCount(outcome.state)).toBe(0);
   });
 
@@ -69,14 +70,14 @@ describe('applyGuess', () => {
   it('rejects unknown athlete ids without spending a guess', () => {
     const outcome = applyGuess(grid, createGame(grid), firstRow.id, firstCol.id, 'football:nobody');
     expect(outcome.kind).toBe('rejected');
-    expect(outcome.state.guessesLeft).toBe(STARTING_GUESSES);
+    expect(outcome.state.guessesLeft).toBe(GUESSES);
   });
 });
 
 describe('finishing', () => {
   it('ends the game once guesses run out', () => {
     let state = createGame(grid);
-    for (let i = 0; i < STARTING_GUESSES; i++) {
+    for (let i = 0; i < GUESSES; i++) {
       const wrong = wrongAthleteFor(firstRow.id, firstCol.id);
       // Each miss needs a distinct athlete only for hits, so reuse is fine here.
       state = applyGuess(grid, state, firstRow.id, firstCol.id, wrong.id).state;
@@ -88,7 +89,7 @@ describe('finishing', () => {
     expect(after.kind).toBe('rejected');
   });
 
-  it('ends the game when all nine cells are filled', () => {
+  it('ends the game when every cell is filled', () => {
     let state = createGame(grid);
     for (const row of grid.rows) {
       for (const col of grid.cols) {
@@ -97,7 +98,7 @@ describe('finishing', () => {
         state = applyGuess(grid, state, row.id, col.id, pick.id).state;
       }
     }
-    expect(solvedCount(state)).toBe(9);
+    expect(solvedCount(state)).toBe(cellCount(grid));
     expect(state.status).toBe('finished');
     expect(state.guessesLeft).toBe(0);
   });

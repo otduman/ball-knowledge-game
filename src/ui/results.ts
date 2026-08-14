@@ -1,6 +1,7 @@
 import type { GameState } from '../engine/game';
 import { missedCells, solvedCount, totalScore } from '../engine/game';
 import type { Grid } from '../engine/grid';
+import { cellCount } from '../engine/grid';
 import { buildShareText, copyText } from '../engine/share';
 import { verdictFor } from '../engine/scoring';
 import { byId, clear, el, toast } from './dom';
@@ -31,9 +32,10 @@ export function renderResult(grid: Grid, state: GameState): void {
 
   const solved = solvedCount(state);
   const score = totalScore(state);
-  const verdict = verdictFor(solved, score);
+  const total = cellCount(grid);
+  const verdict = verdictFor(solved, score, total);
 
-  byId('verdict').textContent = `${verdict.title} — ${solved}/9 · ${score} pts`;
+  byId('verdict').textContent = `${verdict.title} — ${solved}/${total} · ${score} pts`;
   byId('blurb').textContent = verdict.blurb;
 
   currentShareText = buildShareText(grid, state);

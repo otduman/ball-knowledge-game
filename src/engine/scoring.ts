@@ -8,7 +8,9 @@ export function rarityScore(athlete: Athlete): number {
   return Math.max(1, Math.min(99, 100 - athlete.pop));
 }
 
-export const MAX_SCORE = 9 * 99;
+export function maxScoreFor(totalCells: number): number {
+  return totalCells * 99;
+}
 
 export interface Verdict {
   title: string;
@@ -17,28 +19,30 @@ export interface Verdict {
 
 /**
  * Verdict text keyed off both completion and rarity, so filling the board with
- * nine household names reads differently from six genuine deep cuts.
+ * household names reads differently from the same board of genuine deep cuts.
+ * Thresholds are proportional rather than absolute, because a mode with six
+ * cells should not be permanently stuck below the nine-cell praise.
  */
-export function verdictFor(solvedCount: number, score: number): Verdict {
+export function verdictFor(solvedCount: number, score: number, totalCells: number): Verdict {
   if (solvedCount === 0) {
     return {
       title: 'Blanked',
-      blurb: 'Nine empty cells. The reveal below shows names that would have worked.',
+      blurb: `${totalCells} empty cells. The reveal below shows names that would have worked.`,
     };
   }
 
   const averageRarity = score / solvedCount;
 
-  if (solvedCount === 9 && averageRarity >= 90) {
+  if (solvedCount >= totalCells && averageRarity >= 90) {
     return {
       title: 'Ball knowledge, certified',
       blurb: 'A perfect board of deep cuts. There is nothing left to teach you.',
     };
   }
-  if (solvedCount === 9) {
+  if (solvedCount >= totalCells) {
     return {
       title: 'Perfect board',
-      blurb: 'Nine from nine. Try it again and see how obscure you can go.',
+      blurb: `${solvedCount} from ${totalCells}. Try it again and see how obscure you can go.`,
     };
   }
   if (averageRarity >= 90) {
@@ -47,7 +51,7 @@ export function verdictFor(solvedCount: number, score: number): Verdict {
       blurb: 'You left cells empty but nobody else is naming the players you named.',
     };
   }
-  if (solvedCount >= 6) {
+  if (solvedCount / totalCells >= 2 / 3) {
     return {
       title: 'Solid shift',
       blurb: 'A respectable board. The rarer the name, the higher the score.',

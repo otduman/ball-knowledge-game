@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Nine cells, nine guesses. Name an athlete for every region and sport intersection.">
+<meta name="description" content="A daily sports grid. One guess per cell: name an athlete who fits both the row and the column.">
 <meta name="theme-color" content="#F2CDBF">
 <title>Ball Knowledge — daily sports grid</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,12 +18,14 @@
   <h1><span>Ball</span><span>Knowledge</span></h1>
   <div class="dek">
     <span id="issue">Grid No. 001</span>
-    <span>Football · NBA · UFC · F1</span>
+    <span id="dek-mode">Football · NBA · UFC · F1 · Tennis</span>
   </div>
 </header>
 
+<div class="modes" id="modes" role="group" aria-label="Game mode"></div>
+
 <div class="strap">
-  <span>Nine cells. Nine guesses.</span>
+  <span id="strap-rules">Nine cells. Nine guesses.</span>
   <span>Tap a heading for <b>what counts</b></span>
 </div>
 

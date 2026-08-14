@@ -121,6 +121,7 @@ export function renderBoard(
   handlers: BoardHandlers,
 ): void {
   clear(container);
+  container.style.gridTemplateColumns = `1.32fr repeat(${grid.cols.length}, 1fr)`;
 
   const corner = el('div', { className: 'corner' });
   corner.append('Name one', el('br'), 'athlete per', el('br'), 'cell');

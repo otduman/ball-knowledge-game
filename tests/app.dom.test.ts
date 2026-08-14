@@ -15,6 +15,7 @@ const BODY = /<body>([\s\S]*?)<\/body>/.exec(html)?.[1] ?? '';
 /** Day 1 of the game, so the DOM test drives the same board every run. */
 const DAY_ONE = new Date(EPOCH_UTC);
 const grid = buildGrid(1);
+const duel = buildGrid(1, 0, 'duel');
 
 function mount(): void {
   document.body.innerHTML = BODY.replace(/<script[\s\S]*?<\/script>/g, '');
@@ -234,9 +235,62 @@ describe('app boot', () => {
 
     (document.getElementById('next') as HTMLButtonElement).click();
 
-    expect(document.getElementById('issue')?.textContent).toBe('Practice 1');
+    expect(document.getElementById('issue')?.textContent).toBe('Grid practice 1');
     expect(document.getElementById('left')?.textContent).toBe('9');
     const after = Array.from(document.querySelectorAll('#board .head')).map((n) => n.textContent);
     expect(after).not.toEqual(before);
+  });
+});
+
+describe('mode switch', () => {
+  beforeEach(mount);
+
+  function modeButton(id: string): HTMLButtonElement {
+    return document.getElementById(`mode-${id}`) as HTMLButtonElement;
+  }
+
+  it('swaps the 3x3 for a six-cell Football x NBA board', () => {
+    start(DAY_ONE);
+    expect(cells()).toHaveLength(9);
+
+    modeButton('duel').click();
+
+    expect(cells()).toHaveLength(6);
+    expect(document.getElementById('left')?.textContent).toBe('6');
+    expect(document.getElementById('issue')?.textContent).toBe(duel.label);
+
+    const headings = Array.from(document.querySelectorAll('#board .head')).map((n) => n.textContent);
+    expect(headings.sort()).toEqual(['Football', 'NBA']);
+    expect(modeButton('duel').getAttribute('aria-pressed')).toBe('true');
+    expect(modeButton('daily').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('narrows the board to two columns rather than leaving a gap', () => {
+    start(DAY_ONE);
+    modeButton('duel').click();
+    const board = document.getElementById('board') as HTMLElement;
+    expect(board.style.gridTemplateColumns).toBe('1.32fr repeat(2, 1fr)');
+  });
+
+  it('keeps each mode progress separate and remembers the last one played', () => {
+    start(DAY_ONE);
+    modeButton('duel').click();
+
+    const answer = poolFor(duel.rows[0]!, duel.cols[0]!)[0]!;
+    cells()[0]?.click();
+    type(answer.name);
+    options().find((o) => o.textContent?.includes(answer.name))?.click();
+    expect(document.getElementById('left')?.textContent).toBe('5');
+
+    // A reload lands back in the duel with its own save, not the daily board's.
+    document.body.innerHTML = BODY.replace(/<script[\s\S]*?<\/script>/g, '');
+    start(DAY_ONE);
+
+    expect(cells()).toHaveLength(6);
+    expect(document.getElementById('left')?.textContent).toBe('5');
+
+    modeButton('daily').click();
+    expect(document.getElementById('left')?.textContent).toBe('9');
+    expect(document.querySelectorAll('#board .cell.solved')).toHaveLength(0);
   });
 });

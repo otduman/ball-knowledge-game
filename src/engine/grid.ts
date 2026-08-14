@@ -1,87 +1,28 @@
 import type { Category, CategoryGroup } from './categories';
-import { COL_CATEGORIES, GEOGRAPHIC_GROUPS, ROW_CATEGORIES } from './categories';
+import { GEOGRAPHIC_GROUPS, colsForSports, rowsForSports } from './categories';
+import type { GameMode, GridConstraints, ModeId } from './modes';
+import { DEFAULT_MODE, MODES } from './modes';
 import { poolFor } from './pools';
 import { hashString, mulberry32, shuffle } from './rng';
+
+export type { GridConstraints } from './modes';
 
 export interface Grid {
   /** Puzzle number, 1-based from the epoch. Shown as "Grid No. 042". */
   number: number;
   /** 0 for the daily grid; 1+ for extra practice grids on the same day. */
   variant: number;
+  mode: ModeId;
   label: string;
   rows: Category[];
   cols: Category[];
 }
 
-export interface GridConstraints {
-  /** Every intersection must offer at least this many valid answers. */
-  minPool: number;
-  /** At least this many cells should be comfortable, so a grid is never all deep cuts. */
-  minGenerousCells: number;
-  /** Pool size at which a cell counts as "generous". */
-  generousPool: number;
-  /**
-   * Cells at or above this many answers are near-free: almost any well-known
-   * name in that sport works. They are not banned outright, because the
-   * friendlier rows (a common surname letter, a big country) are legitimately
-   * broad — they are budgeted instead.
-   */
-  widePool: number;
-  maxWideCells: number;
-  /**
-   * Every board keeps at least this many geographic rows (region or country).
-   * A grid built only from letters and decades loses the "where are they from"
-   * hook the game is built around.
-   */
-  minGeographicRows: number;
-  /** Rows from the same group (two decades, say) beyond this are rejected. */
-  maxRowsPerGroup: number;
-  /**
-   * Per-group overrides. Letters are capped at one because there are 20 of them
-   * against 9 regions and 5 decades, so uniform sampling floods the board:
-   * before this cap they filled 40% of row slots and 34% of boards had two.
-   */
-  maxRowsByGroup: Partial<Record<CategoryGroup, number>>;
+export const DEFAULT_CONSTRAINTS: GridConstraints = MODES.daily.constraints;
+
+export function cellCount(grid: Grid): number {
+  return grid.rows.length * grid.cols.length;
 }
-
-/**
- * Football is the sport most players know best and has by far the deepest
- * roster, so it headlines most boards instead of taking its uniform 60% share.
- * One board in `PRIMARY_COLUMN_CYCLE` omits it, to keep the other four sports
- * from becoming garnish.
- */
-const PRIMARY_COLUMN_ID = 'sport:football';
-const PRIMARY_COLUMN_CYCLE = 6;
-
-export const DEFAULT_CONSTRAINTS: GridConstraints = {
-  minPool: 6,
-  minGenerousCells: 3,
-  generousPool: 15,
-  widePool: 150,
-  maxWideCells: 1,
-  minGeographicRows: 1,
-  maxRowsPerGroup: 2,
-  // Reach is capped like letters: two fame rows on one board would make it a
-  // quiz about Wikipedia rather than about sport.
-  maxRowsByGroup: { letter: 1, reach: 1 },
-};
-
-/** Progressively looser fallbacks, used only if the strict pass finds nothing. */
-const RELAXATIONS: GridConstraints[] = [
-  DEFAULT_CONSTRAINTS,
-  { ...DEFAULT_CONSTRAINTS, minPool: 5, minGenerousCells: 2, generousPool: 12, maxWideCells: 2 },
-  { ...DEFAULT_CONSTRAINTS, minPool: 4, minGenerousCells: 1, generousPool: 10, maxWideCells: 3, maxRowsPerGroup: 3 },
-  {
-    minPool: 3,
-    minGenerousCells: 0,
-    generousPool: 1,
-    widePool: Infinity,
-    maxWideCells: 9,
-    minGeographicRows: 0,
-    maxRowsPerGroup: 3,
-    maxRowsByGroup: {},
-  },
-];
 
 function combinations<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
@@ -138,9 +79,10 @@ export function isFeasible(
 /** Every row/column combination that satisfies the constraints, in stable order. */
 export function feasibleGrids(
   constraints: GridConstraints = DEFAULT_CONSTRAINTS,
+  mode: GameMode = MODES[DEFAULT_MODE],
 ): Array<{ rows: Category[]; cols: Category[] }> {
-  const rowSets = combinations(ROW_CATEGORIES, 3);
-  const colSets = combinations(COL_CATEGORIES, 3);
+  const rowSets = combinations(rowsForSports(mode.sportIds, mode.colCount), mode.rowCount);
+  const colSets = combinations(colsForSports(mode.sportIds), mode.colCount);
   const out: Array<{ rows: Category[]; cols: Category[] }> = [];
 
   for (const rows of rowSets) {
@@ -168,11 +110,11 @@ function constraintKey(c: GridConstraints): string {
 
 const CATALOG_CACHE = new Map<string, Catalog>();
 
-function catalog(constraints: GridConstraints): Catalog {
-  const key = constraintKey(constraints);
+function catalog(mode: GameMode, constraints: GridConstraints): Catalog {
+  const key = `${mode.id}#${constraintKey(constraints)}`;
   const cached = CATALOG_CACHE.get(key);
   if (cached) return cached;
-  const built = feasibleGrids(constraints);
+  const built = feasibleGrids(constraints, mode);
   CATALOG_CACHE.set(key, built);
   return built;
 }
@@ -199,14 +141,14 @@ interface Partitions {
 // board scale with the catalogue rather than being effectively free.
 const PARTITION_CACHE = new Map<string, Partitions>();
 
-function partitionsFor(pool: Catalog, key: string): Partitions {
+function partitionsFor(pool: Catalog, primaryColumnId: string, key: string): Partitions {
   const cached = PARTITION_CACHE.get(key);
   if (cached) return cached;
 
   const withPrimary: Catalog = [];
   const withoutPrimary: Catalog = [];
   for (const entry of pool) {
-    if (entry.cols.some((c) => c.id === PRIMARY_COLUMN_ID)) withPrimary.push(entry);
+    if (entry.cols.some((c) => c.id === primaryColumnId)) withPrimary.push(entry);
     else withoutPrimary.push(entry);
   }
   const partitions: Partitions = { withPrimary, withoutPrimary };
@@ -221,17 +163,38 @@ interface Strata {
 
 const STRATA_CACHE = new Map<string, Strata>();
 
+/**
+ * Strata thinner than this are pooled together rather than given a slot of
+ * their own. Equal airtime across shapes is only free while every shape has
+ * enough boards to sustain it: the duel catalogue has shapes holding two boards
+ * against shapes holding six hundred, and handing the pair a full 1-in-20 slot
+ * recycled it every 40 boards. Nothing in the daily catalogue is this thin — its
+ * smallest stratum holds 76 — so this is inert there by construction.
+ */
+const MIN_STRATUM = 25;
+const MISC_SIGNATURE = '*';
+
 function strataFor(pool: Catalog, key: string): Strata {
   const cached = STRATA_CACHE.get(key);
   if (cached) return cached;
 
-  const bySignature = new Map<string, Catalog>();
+  const grouped = new Map<string, Catalog>();
   for (const entry of pool) {
     const sig = signatureOf(entry);
-    const list = bySignature.get(sig) ?? [];
+    const list = grouped.get(sig) ?? [];
     list.push(entry);
-    bySignature.set(sig, list);
+    grouped.set(sig, list);
   }
+
+  const bySignature = new Map<string, Catalog>();
+  const misc: Catalog = [];
+  for (const sig of [...grouped.keys()].sort()) {
+    const list = grouped.get(sig) as Catalog;
+    if (list.length >= MIN_STRATUM) bySignature.set(sig, list);
+    else misc.push(...list);
+  }
+  if (misc.length > 0) bySignature.set(MISC_SIGNATURE, misc);
+
   const strata: Strata = { signatures: [...bySignature.keys()].sort(), bySignature };
   STRATA_CACHE.set(key, strata);
   return strata;
@@ -251,47 +214,74 @@ function permutationFor(pool: Catalog, cycle: number, key: string): Catalog {
 }
 
 /**
- * Builds the grid for a puzzle number. Deterministic: the same number always
- * yields the same board.
+ * Where a board sits in the walk. Daily boards take the front of the index
+ * space, one per puzzle number, so the sequence a player actually sees walks
+ * the catalogue densely; practice boards live past `DAILY_SPAN`.
+ *
+ * The obvious `(number - 1) * 8 + variant` is dense over all boards but makes
+ * the *daily* track a stride-8 subsequence, and the round-robin over board
+ * shapes reads `index % shapeCount`. Whenever that stride shared a factor with
+ * the shape count the round-robin collapsed: the duel has 16 shapes and its
+ * daily track visited two of them, repeating a board every 62 days.
+ */
+const DAILY_SPAN = 100_000;
+const PRACTICE_PER_DAY = 7;
+
+function ordinalFor(number: number, variant: number): number {
+  const day = Math.max(0, number - 1);
+  if (variant <= 0) return day;
+  return DAILY_SPAN + day * PRACTICE_PER_DAY + (variant - 1);
+}
+
+/**
+ * Builds the grid for a puzzle number. Deterministic: the same number and mode
+ * always yield the same board.
  *
  * Selection walks a seeded permutation of the feasible catalogue rather than
  * picking at random, so every grid is used once before any repeats.
  */
-export function buildGrid(number: number, variant = 0): Grid {
+export function buildGrid(number: number, variant = 0, modeId: ModeId = DEFAULT_MODE): Grid {
+  const mode = MODES[modeId];
+
   let pool: Catalog = [];
-  let usedConstraints = DEFAULT_CONSTRAINTS;
-  for (const constraints of RELAXATIONS) {
-    pool = catalog(constraints);
+  let usedConstraints = mode.constraints;
+  for (const constraints of mode.relaxations) {
+    pool = catalog(mode, constraints);
     usedConstraints = constraints;
     if (pool.length > 0) break;
   }
   if (pool.length === 0) {
-    throw new Error('No feasible grid exists for the current roster.');
+    throw new Error(`No feasible ${mode.id} grid exists for the current roster.`);
   }
 
-  const ordinal = Math.max(0, (number - 1) * 8 + variant);
-  const key = constraintKey(usedConstraints);
+  const ordinal = ordinalFor(number, variant);
+  const key = `${mode.id}#${constraintKey(usedConstraints)}`;
 
   // Split the catalogue by whether it features the primary sport, then walk
   // each side on its own permutation. Weighting this way keeps the "no repeat
   // until exhausted" guarantee inside each partition, which duplicating
   // entries in a single list would have broken.
-  const { withPrimary, withoutPrimary } = partitionsFor(pool, key);
+  let partition = pool;
+  let index = ordinal;
+  let partitionKey = key;
 
-  const cycleLength = PRIMARY_COLUMN_CYCLE + 1;
-  const wantsOther = ordinal % cycleLength === cycleLength - 1;
-  const othersBefore = Math.floor(ordinal / cycleLength);
+  if (mode.primaryColumnId !== null) {
+    const { withPrimary, withoutPrimary } = partitionsFor(pool, mode.primaryColumnId, key);
+    const cycleLength = mode.primaryColumnCycle + 1;
+    const wantsOther = ordinal % cycleLength === cycleLength - 1;
+    const othersBefore = Math.floor(ordinal / cycleLength);
 
-  let partition = withPrimary;
-  let index = ordinal - othersBefore;
-  let partitionKey = `${key}#primary`;
+    partition = withPrimary;
+    index = ordinal - othersBefore;
+    partitionKey = `${key}#primary`;
 
-  if ((wantsOther && withoutPrimary.length > 0) || withPrimary.length === 0) {
-    partition = withoutPrimary;
-    index = othersBefore;
-    partitionKey = `${key}#other`;
+    if ((wantsOther && withoutPrimary.length > 0) || withPrimary.length === 0) {
+      partition = withoutPrimary;
+      index = othersBefore;
+      partitionKey = `${key}#other`;
+    }
+    if (partition.length === 0) partition = pool;
   }
-  if (partition.length === 0) partition = pool;
 
   // Round-robin across board shapes, then walk each shape's own permutation.
   const { signatures, bySignature } = strataFor(partition, partitionKey);
@@ -303,11 +293,15 @@ export function buildGrid(number: number, variant = 0): Grid {
   const order = permutationFor(bucket, cycle, `${partitionKey}#${signature}`);
   const picked = order[withinIndex % bucket.length] as { rows: Category[]; cols: Category[] };
 
-  const layoutRng = mulberry32(hashString(`layout:${number}:${variant}`));
+  const layoutRng = mulberry32(hashString(`layout:${mode.id}:${number}:${variant}`));
   return {
     number,
     variant,
-    label: variant === 0 ? `Grid No. ${String(number).padStart(3, '0')}` : `Practice ${variant}`,
+    mode: mode.id,
+    label:
+      variant === 0
+        ? `${mode.boardName} No. ${String(number).padStart(3, '0')}`
+        : `${mode.boardName} practice ${variant}`,
     rows: shuffle(picked.rows, layoutRng),
     cols: shuffle(picked.cols, layoutRng),
   };

@@ -1,17 +1,28 @@
 import { athleteById } from '../data/rosters';
 import type { Athlete } from '../data/types';
 import type { Grid } from './grid';
+import { cellCount } from './grid';
+import type { ModeId } from './modes';
 import { cellKey, poolFor } from './pools';
 import { rarityScore } from './scoring';
 
-export const TOTAL_CELLS = 9;
-export const STARTING_GUESSES = 9;
+/**
+ * One guess per cell, in every mode. The daily 3x3 gives nine and the duel
+ * gives six, so neither offers slack: naming someone you are only half sure
+ * about always costs you a square you could have filled.
+ */
+export function startingGuesses(grid: Grid): number {
+  return cellCount(grid);
+}
 
 export type GameStatus = 'playing' | 'finished';
 
 export interface GameState {
   gridNumber: number;
   variant: number;
+  mode: ModeId;
+  /** How many cells this board has, so a saved game knows when it is complete. */
+  totalCells: number;
   /** cellKey -> athlete id. */
   solved: Record<string, string>;
   guessesLeft: number;
@@ -33,8 +44,10 @@ export function createGame(grid: Grid): GameState {
   return {
     gridNumber: grid.number,
     variant: grid.variant,
+    mode: grid.mode,
+    totalCells: cellCount(grid),
     solved: {},
-    guessesLeft: STARTING_GUESSES,
+    guessesLeft: startingGuesses(grid),
     status: 'playing',
   };
 }
@@ -57,7 +70,7 @@ export function totalScore(state: GameState): number {
 }
 
 function settle(state: GameState): GameState {
-  const done = state.guessesLeft <= 0 || solvedCount(state) === TOTAL_CELLS;
+  const done = state.guessesLeft <= 0 || solvedCount(state) >= state.totalCells;
   return done ? { ...state, status: 'finished' } : state;
 }
 
