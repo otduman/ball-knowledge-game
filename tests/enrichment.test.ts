@@ -9,6 +9,7 @@ import {
   ERA_CATEGORIES,
   GEOGRAPHIC_GROUPS,
   LETTER_CATEGORIES,
+  REACH_CATEGORIES,
   ROW_CATEGORIES,
 } from '../src/engine/categories';
 import { DEFAULT_CONSTRAINTS, buildGrid } from '../src/engine/grid';
@@ -17,17 +18,18 @@ import { poolFor } from '../src/engine/pools';
 const entries = raw.entries as unknown as Record<string, unknown>;
 
 describe('enrichment data', () => {
-  it('stores every entry as a [height, year, gender] tuple', () => {
+  it('stores every entry as a [height, year, gender, reach] tuple', () => {
     const malformed: string[] = [];
     for (const [id, value] of Object.entries(entries)) {
-      if (!Array.isArray(value) || value.length !== 3) {
+      if (!Array.isArray(value) || value.length !== 4) {
         malformed.push(`${id}: bad shape`);
         continue;
       }
-      const [height, year, gender] = value as unknown[];
+      const [height, year, gender, reach] = value as unknown[];
       if (height !== null && typeof height !== 'number') malformed.push(`${id}: height`);
       if (year !== null && typeof year !== 'number') malformed.push(`${id}: year`);
       if (gender !== null && gender !== 'f' && gender !== 'm') malformed.push(`${id}: gender`);
+      if (reach !== null && (typeof reach !== 'number' || reach < 1)) malformed.push(`${id}: reach`);
     }
     expect(malformed).toEqual([]);
   });
@@ -118,6 +120,76 @@ describe('attribute categories', () => {
       return usable < 3;
     });
     expect(dead.map((c) => c.label)).toEqual([]);
+  });
+});
+
+describe('Wikipedia reach', () => {
+  it('covers nearly the whole roster', () => {
+    const withReach = ATHLETES.filter((a) => a.wikipediaLanguages !== undefined).length;
+    expect(withReach / ATHLETES.length).toBeGreaterThan(0.95);
+  });
+
+  it('ranks the household names at the top', () => {
+    const top = [...ATHLETES]
+      .sort((a, b) => (b.wikipediaLanguages ?? 0) - (a.wikipediaLanguages ?? 0))
+      .slice(0, 12)
+      .map((a) => a.name);
+    // A fame proxy that does not surface these is not measuring fame.
+    expect(top).toContain('Lionel Messi');
+    expect(top).toContain('Cristiano Ronaldo');
+    expect(top.some((n) => ['Roger Federer', 'Rafael Nadal', 'Novak Djokovic'].includes(n))).toBe(true);
+  });
+
+  it('keeps the two bands disjoint and never matches an athlete with no data', () => {
+    const both = ATHLETES.filter((a) => REACH_CATEGORIES.every((c: Category) => c.matches(a)));
+    expect(both.map((a) => a.name)).toEqual([]);
+
+    const noData = ATHLETES.filter((a) => a.wikipediaLanguages === undefined);
+    for (const athlete of noData) {
+      expect(REACH_CATEGORIES.some((c: Category) => c.matches(athlete))).toBe(false);
+    }
+  });
+
+  it('puts genuinely famous athletes in Global name and obscure ones in Deep cut', () => {
+    const global = REACH_CATEGORIES.find((c) => c.label === 'Global name')!;
+    const deep = REACH_CATEGORIES.find((c) => c.label === 'Deep cut')!;
+    const byName = (n: string) => ATHLETES.find((a) => a.name === n)!;
+
+    expect(global.matches(byName('Lionel Messi'))).toBe(true);
+    expect(global.matches(byName('Michael Schumacher'))).toBe(true);
+    expect(deep.matches(byName('Lionel Messi'))).toBe(false);
+  });
+
+  it('adds no near-free cells — both bands stay under the wide threshold', () => {
+    for (const row of REACH_CATEGORIES) {
+      for (const col of COL_CATEGORIES) {
+        expect(poolFor(row, col).length).toBeLessThan(DEFAULT_CONSTRAINTS.widePool);
+      }
+    }
+  });
+});
+
+describe('board variety', () => {
+  it('gives every row group meaningful airtime, not airtime proportional to its size', () => {
+    const slots = new Map<string, number>();
+    const boards = 200;
+    for (let n = 1; n <= boards; n++) {
+      for (const row of buildGrid(n).rows) slots.set(row.group, (slots.get(row.group) ?? 0) + 1);
+    }
+    const total = boards * 3;
+    // Reach has 2 rows against 20 letters. Under uniform sampling it landed on
+    // 3% of slots; stratifying by board shape is what keeps it visible.
+    for (const group of ['region', 'country', 'era', 'reach', 'letter']) {
+      const share = (slots.get(group) ?? 0) / total;
+      expect(share, `${group} share`).toBeGreaterThan(0.05);
+    }
+  });
+
+  it('never puts two reach rows on one board', () => {
+    for (let n = 1; n <= 300; n++) {
+      const reach = buildGrid(n).rows.filter((r) => r.group === 'reach').length;
+      expect(reach).toBeLessThanOrEqual(1);
+    }
   });
 });
 

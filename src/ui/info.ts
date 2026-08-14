@@ -7,6 +7,7 @@ const GROUP_LABEL: Record<Category['group'], string> = {
   sport: 'Sport',
   era: 'Year of birth',
   letter: 'Family name',
+  reach: 'How widely they are known',
 };
 
 /**

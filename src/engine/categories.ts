@@ -11,7 +11,7 @@ export type AxisId = 'row' | 'col';
  * Categories within a group are mutually exclusive by construction, so two of
  * them can share a board without overlapping or contradicting each other.
  */
-export type CategoryGroup = 'region' | 'country' | 'sport' | 'era' | 'letter';
+export type CategoryGroup = 'region' | 'country' | 'sport' | 'era' | 'letter' | 'reach';
 
 export interface Category {
   id: string;
@@ -152,6 +152,51 @@ export const LETTER_CATEGORIES: readonly Category[] = [...'abcdefghijklmnopqrstu
   }))
   .filter((category) => isViableRow(category.matches));
 
+// ---- Wikipedia reach -----------------------------------------------------
+
+/**
+ * How many language Wikipedias carry an article about an athlete: a free,
+ * stable proxy for global fame. This is the workable form of "1M+ Instagram
+ * followers" — Wikidata records no follower counts, and a follower threshold
+ * would rot as the number moved, making yesterday's correct answer wrong.
+ *
+ * Only the two extremes are rows. The middle of the distribution is both huge
+ * (a 342-answer cell) and unguessable — nobody can tell 30 languages from 50 —
+ * whereas "globally famous" and "obscure" are judgements a fan can actually
+ * make. Athletes in the gap match neither row, exactly as an athlete with no
+ * birth year matches no decade.
+ */
+const REACH_BANDS: Array<{ id: string; label: string; min: number; max: number; blurb: string }> = [
+  {
+    id: 'global',
+    label: 'Global name',
+    min: 75,
+    max: Infinity,
+    blurb: 'Has a Wikipedia article in 75 or more languages',
+  },
+  {
+    id: 'deepcut',
+    label: 'Deep cut',
+    min: 0,
+    max: 15,
+    blurb: 'Has a Wikipedia article in fewer than 15 languages',
+  },
+];
+
+export const REACH_CATEGORIES: readonly Category[] = REACH_BANDS.map((band) => ({
+  id: `reach:${band.id}`,
+  label: band.label,
+  axis: 'row' as const,
+  group: 'reach' as const,
+  hint: band.blurb,
+  explain: true,
+  shortHint: band.max === Infinity ? `Wikipedia in ${band.min}+ languages` : `Wikipedia in <${band.max} languages`,
+  matches: (athlete: Athlete) =>
+    athlete.wikipediaLanguages !== undefined &&
+    athlete.wikipediaLanguages >= band.min &&
+    athlete.wikipediaLanguages < band.max,
+}));
+
 // ---- sports (columns) ----------------------------------------------------
 
 const SPORT_HINTS: Record<SportId, string> = {
@@ -181,6 +226,7 @@ export const ROW_CATEGORIES: readonly Category[] = [
   ...REGION_CATEGORIES,
   ...COUNTRY_CATEGORIES,
   ...ERA_CATEGORIES,
+  ...REACH_CATEGORIES,
   ...LETTER_CATEGORIES,
 ];
 

@@ -61,7 +61,9 @@ export const DEFAULT_CONSTRAINTS: GridConstraints = {
   maxWideCells: 1,
   minGeographicRows: 1,
   maxRowsPerGroup: 2,
-  maxRowsByGroup: { letter: 1 },
+  // Reach is capped like letters: two fame rows on one board would make it a
+  // quiz about Wikipedia rather than about sport.
+  maxRowsByGroup: { letter: 1, reach: 1 },
 };
 
 /** Progressively looser fallbacks, used only if the strict pass finds nothing. */
@@ -175,6 +177,42 @@ function catalog(constraints: GridConstraints): Catalog {
   return built;
 }
 
+/**
+ * The multiset of row *kinds* on a board — "country+letter+region". Boards are
+ * served round-robin across signatures rather than uniformly across the
+ * catalogue, because uniform sampling makes a group's airtime proportional to
+ * how many rows it happens to contain. With 20 letters against 2 reach bands,
+ * that buried reach on 3% of row slots while letters took 40%. Stratifying by
+ * signature gives each *kind of board* equal exposure, so adding two rows of a
+ * new kind actually changes what players see.
+ */
+function signatureOf(entry: { rows: Category[] }): string {
+  return entry.rows.map((r) => r.group).sort().join('+');
+}
+
+interface Strata {
+  signatures: string[];
+  bySignature: Map<string, Catalog>;
+}
+
+const STRATA_CACHE = new Map<string, Strata>();
+
+function strataFor(pool: Catalog, key: string): Strata {
+  const cached = STRATA_CACHE.get(key);
+  if (cached) return cached;
+
+  const bySignature = new Map<string, Catalog>();
+  for (const entry of pool) {
+    const sig = signatureOf(entry);
+    const list = bySignature.get(sig) ?? [];
+    list.push(entry);
+    bySignature.set(sig, list);
+  }
+  const strata: Strata = { signatures: [...bySignature.keys()].sort(), bySignature };
+  STRATA_CACHE.set(key, strata);
+  return strata;
+}
+
 // Shuffling the catalogue is O(n) and the catalogue is large, so the ordering
 // for a cycle is computed once instead of on every buildGrid call.
 const PERMUTATION_CACHE = new Map<string, Catalog>();
@@ -232,9 +270,15 @@ export function buildGrid(number: number, variant = 0): Grid {
   }
   if (partition.length === 0) partition = pool;
 
-  const cycle = Math.floor(index / partition.length);
-  const order = permutationFor(partition, cycle, partitionKey);
-  const picked = order[index % partition.length] as { rows: Category[]; cols: Category[] };
+  // Round-robin across board shapes, then walk each shape's own permutation.
+  const { signatures, bySignature } = strataFor(partition, partitionKey);
+  const signature = signatures[index % signatures.length] as string;
+  const bucket = bySignature.get(signature) as Catalog;
+  const withinIndex = Math.floor(index / signatures.length);
+
+  const cycle = Math.floor(withinIndex / bucket.length);
+  const order = permutationFor(bucket, cycle, `${partitionKey}#${signature}`);
+  const picked = order[withinIndex % bucket.length] as { rows: Category[]; cols: Category[] };
 
   const layoutRng = mulberry32(hashString(`layout:${number}:${variant}`));
   return {

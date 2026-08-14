@@ -11,20 +11,21 @@ SPAIN               +           +          +
 SURNAME F           +           +          +
 ```
 
-Rows mix regions, countries, birth decades and surname initials; columns are
-sports, and which three sports appear changes day to day.
+Rows mix regions, countries, birth decades, Wikipedia reach and surname
+initials; columns are sports, and which three sports appear changes day to day.
 
-**Every heading is tappable.** "Southern Europe" quietly includes Spain and
-Portugal, and a player has no way to know that before spending a guess — so
-each heading explains exactly what it accepts, both in a panel and inline in
-the picker at the moment of guessing.
+**Ambiguous headings explain themselves.** "Southern Europe" quietly includes
+Spain and Portugal, and a player has no way to know that before spending a
+guess — so those headings carry their member countries inline under the label,
+open a panel when tapped, and restate the rule in the picker at the moment of
+guessing. Self-evident headings ("Spain", "Surname F") get none of that.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 68 tests
+npm test           # 79 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
@@ -72,7 +73,7 @@ cell. Rarity score is `100 - pop`, so an obvious pick is worth ~45 and a deep cu
 Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 300 tennis, across 98 countries.
 
-### Rows: 48 of them, in four groups
+### Rows: 50 of them, in five groups
 
 | group | count | examples |
 |---|---|---|
@@ -80,6 +81,7 @@ Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 | Country | 14 | Spain, Brazil, Serbia, Australia |
 | Born decade | 5 | Born 1980s, Born 2000s |
 | Surname initial | 20 | Surname K, Surname M, Surname S |
+| Wikipedia reach | 2 | Global name, Deep cut |
 
 `country → region` resolves through one table in [regions.ts](src/data/regions.ts),
 so classification is auditable in one place. Country and letter rows are
@@ -103,6 +105,19 @@ Single letters rather than A–C buckets: buckets are three times wider for no
 extra interest ("A–C × Football" offered 115 answers, "M × Football" offers 56)
 and single letters give 20 rows instead of 7.
 
+**Wikipedia reach** counts how many language Wikipedias carry an article about
+an athlete — a free, stable proxy for global fame, and the workable form of
+"1M+ Instagram followers" (Wikidata records no follower counts, and a follower
+threshold would rot as the number moved). It ranks exactly as a fame measure
+should: Messi 223, Ronaldo 211, Pelé 181, Schumacher 171, Federer 159.
+
+Only the two extremes are rows. The middle of the distribution is both enormous
+(a 342-answer cell) and unguessable — nobody can tell 30 languages from 50 —
+whereas "globally famous" and "obscure" are judgements a fan can actually make.
+Athletes in the gap match neither row, exactly as an athlete with no birth year
+matches no decade. Both bands stay under the wide-cell threshold, so reach adds
+no free squares at all.
+
 ### Grids are chosen, not sampled
 
 [grid.ts](src/engine/grid.ts) enumerates all 3×3 combinations, keeps the ones
@@ -111,14 +126,27 @@ comfortable, then walks that catalogue in a seeded permutation:
 
 - Every board is solvable. There is no "UK & Ireland × NBA" cell, because the
   roster has only four such players and the feasibility check rejects it.
-- No grid repeats until all **47,936** feasible boards are used.
+- **34,342** boards are feasible, and none repeats over any realistic run.
 
 There is also a **difficulty budget**. A cell offering 150+ valid answers is
 near-free — almost any well-known name in that sport works — so at most one is
 allowed per board. It is a budget rather than a ban because the friendlier rows
-(a common surname letter, a big country) are legitimately broad. The effect:
-boards containing a free square fell from 39% to 5%, and the median cell went
-from 41 valid answers to 16.
+(a common surname letter, a big country) are legitimately broad. The median cell
+went from 41 valid answers to 16.
+
+Two things shape *which* board you get, and both exist because uniform sampling
+produced boards that felt alike:
+
+- **Stratified by shape.** Boards are served round-robin across the multiset of
+  row kinds they use ("country+letter+region"), not uniformly across the
+  catalogue. Uniform sampling makes a group's airtime proportional to how many
+  rows it contains, so 20 letters took 40% of row slots while 2 reach bands took
+  3%. Stratifying gives each *kind* of board equal exposure: letters and reach
+  now sit at 13% each, regions 28%, countries 29%, decades 19%.
+- **Football is weighted.** It is the sport most players know and has the
+  deepest roster, so the catalogue is split on whether a board features it and
+  each side walks its own permutation. Football headlines 86% of boards rather
+  than its uniform 60%, while one board in seven still omits it.
 
 Puzzle numbers count UTC days from `EPOCH_UTC`, so everyone gets the same board
 on the same day, and progress survives a reload via `localStorage`.
@@ -142,8 +170,8 @@ npx vite-node scripts/probe-gender.ts      # women per sport (see its caveat)
 `enrichment.json` is **generated — do not hand-edit it**. It is committed so
 builds stay offline and reproducible, and only needs regenerating when the
 roster grows. Current coverage: **99% matched, 99% with a birth year, 99% with
-gender, 86% with height** — 13 athletes out of 1686 remain unresolved and simply
-carry no decade.
+gender, 99% with Wikipedia reach, 86% with height** — 14 athletes out of 1686
+remain unresolved and simply carry no decade or reach band.
 
 It runs in two passes. Pass 1 bulk-matches exact labels over SPARQL, which is
 fast and resolves most of the roster. Pass 2 sends the stragglers through the
@@ -202,6 +230,8 @@ board through actual clicks, catching markup drift a typecheck cannot.
   Cup for football, a Grand Slam for tennis, the drivers' title for F1. The row
   label must resolve to the concrete trophy in the picker, or players will type
   Cristiano Ronaldo (never a World Cup winner) and feel cheated.
+- **More sports.** The strongest remaining variety lever: going from 5 to 7
+  columns takes column combinations from 10 to 35 and deepens every row at once.
 - **Women's row.** Gender is already collected (99%). Blocked on the NBA column
   being structurally men-only: renaming it "Basketball" and adding ~25 WNBA
   players takes the row from 3 viable columns to 4. F1 will never qualify —

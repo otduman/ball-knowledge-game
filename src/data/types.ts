@@ -51,4 +51,10 @@ export interface Athlete {
   birthYear?: number;
   /** Sourced from Wikidata P21; underpins a future women's row. */
   gender?: 'f' | 'm';
+  /**
+   * How many language Wikipedias carry an article about this athlete. A free,
+   * stable proxy for global fame — the workable version of "how many followers
+   * do they have", which Wikidata does not record and which changes daily.
+   */
+  wikipediaLanguages?: number;
 }

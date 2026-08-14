@@ -294,11 +294,12 @@ async function main(): Promise<void> {
 
   const byQid = await fetchByQids([...allQids]);
 
-  /** athleteId -> [heightCm | null, birthYear | null, "f" | "m" | null] */
-  const entries: Record<string, [number | null, number | null, string | null]> = {};
+  /** athleteId -> [heightCm | null, birthYear | null, gender | null, sitelinks | null] */
+  const entries: Record<string, [number | null, number | null, string | null, number | null]> = {};
   let heights = 0;
   let births = 0;
   let genders = 0;
+  let reach = 0;
   const unmatched: string[] = [];
 
   for (const athlete of ATHLETES) {
@@ -319,22 +320,28 @@ async function main(): Promise<void> {
     const height = medianHeight(best.heights);
     const birthYear = best.birthYear ?? null;
     const gender = best.gender ?? null;
-    if (height === null && birthYear === null && gender === null) continue;
+    // Sitelinks = how many language Wikipedias carry an article. A free,
+    // stable proxy for global fame, and already fetched for disambiguation.
+    const sitelinks = best.sitelinks > 0 ? best.sitelinks : null;
+    if (height === null && birthYear === null && gender === null && sitelinks === null) continue;
 
     if (height !== null) heights++;
     if (birthYear !== null) births++;
     if (gender !== null) genders++;
-    entries[athlete.id] = [height, birthYear, gender];
+    if (sitelinks !== null) reach++;
+    entries[athlete.id] = [height, birthYear, gender, sitelinks];
   }
 
   const pct = (n: number) => `${Math.round((100 * n) / ATHLETES.length)}%`;
   const output = {
-    $schema: 'athleteId -> [heightCm | null, birthYear | null, gender "f" | "m" | null]',
-    source: 'Wikidata (P2048 height, P569 birth date, P21 gender)',
+    $schema:
+      'athleteId -> [heightCm | null, birthYear | null, gender "f" | "m" | null, wikipediaLanguages | null]',
+    source: 'Wikidata (P2048 height, P569 birth date, P21 gender, wikibase:sitelinks)',
     athletes: ATHLETES.length,
     withHeight: heights,
     withBirthYear: births,
     withGender: genders,
+    withReach: reach,
     entries,
   };
 
@@ -345,6 +352,7 @@ async function main(): Promise<void> {
   console.log(`with height  : ${heights} (${pct(heights)})`);
   console.log(`with birth yr: ${births} (${pct(births)})`);
   console.log(`with gender  : ${genders} (${pct(genders)})`);
+  console.log(`with reach   : ${reach} (${pct(reach)})`);
   console.log(`unmatched    : ${unmatched.length}${unmatched.length ? ` — ${unmatched.slice(0, 10).join(', ')}` : ''}`);
   console.log(`wrote ${target}`);
 }

@@ -1,17 +1,18 @@
 /** Inventory, difficulty spread and reachability for the current category set. */
 import {
   ROW_CATEGORIES, COL_CATEGORIES, REGION_CATEGORIES,
-  COUNTRY_CATEGORIES, ERA_CATEGORIES, LETTER_CATEGORIES,
+  COUNTRY_CATEGORIES, ERA_CATEGORIES, LETTER_CATEGORIES, REACH_CATEGORIES,
 } from '../src/engine/categories';
 import { poolFor } from '../src/engine/pools';
 import { feasibleGrids, DEFAULT_CONSTRAINTS } from '../src/engine/grid';
 import { ATHLETES } from '../src/data/rosters';
 
 console.log('=== INVENTORY ===');
-console.log(`rows: ${ROW_CATEGORIES.length} (region ${REGION_CATEGORIES.length}, country ${COUNTRY_CATEGORIES.length}, era ${ERA_CATEGORIES.length}, letter ${LETTER_CATEGORIES.length})`);
+console.log(`rows: ${ROW_CATEGORIES.length} (region ${REGION_CATEGORIES.length}, country ${COUNTRY_CATEGORIES.length}, era ${ERA_CATEGORIES.length}, reach ${REACH_CATEGORIES.length}, letter ${LETTER_CATEGORIES.length})`);
 console.log('  region :', REGION_CATEGORIES.map(c=>c.label).join(' | '));
 console.log('  country:', COUNTRY_CATEGORIES.map(c=>c.label).join(' | '));
 console.log('  era    :', ERA_CATEGORIES.map(c=>c.label).join(' | '));
+console.log('  reach  :', REACH_CATEGORIES.map(c=>c.label).join(' | '));
 console.log('  letter :', LETTER_CATEGORIES.map(c=>c.label.replace('Surname ','')).join(' '));
 console.log(`cols: ${COL_CATEGORIES.length} -`, COL_CATEGORIES.map(c=>c.label).join(' | '));
 
