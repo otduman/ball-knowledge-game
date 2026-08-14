@@ -57,6 +57,13 @@ interface Candidate {
   sitelinks: number;
 }
 
+/** Extra facts fetched by QID once the right entity has been chosen. */
+interface Extras {
+  citizenships: number;
+  birthCity?: string;
+  bornInCapital: boolean;
+}
+
 const nfc = (value: string): string => value.normalize('NFC');
 
 function toCentimetres(amount: number, unit: string): number | undefined {
@@ -238,6 +245,74 @@ SELECT ?item ?amount ?unitLabel ?dob ?genderLabel ?sport ?sitelinks WHERE {
 }
 
 /**
+ * Pass 3: facts that only make sense once the right entity is known, fetched by
+ * QID so there is no homonym risk left to handle.
+ *
+ * Two traps here, both found by measurement:
+ *  - Capitals must be derived country-first (`?country wdt:P36 ?city`), never
+ *    city-first via P1376 "capital of". P1376 counts historic and sub-national
+ *    capitals, which inflates the hit rate from 10% to 65% and cheerfully
+ *    asserts that New York City is a capital of the United States.
+ *    Country-first is necessary but NOT sufficient: P36 also belongs to
+ *    regions, provinces and counties, so `?capitalOf` must additionally be a
+ *    sovereign state. Without that constraint 68% of footballers read as
+ *    capital-born, because Manchester is the capital of Greater Manchester.
+ *  - Defunct states inflate citizenship counts — Vlade Divac lists three
+ *    flavours of Yugoslavia — so anything with a dissolution date is excluded.
+ */
+async function fetchExtras(qids: string[]): Promise<Map<string, Extras>> {
+  const out = new Map<string, Extras>();
+
+  for (let i = 0; i < qids.length; i += BATCH_SIZE) {
+    const values = qids.slice(i, i + BATCH_SIZE).map((q) => `wd:${q}`).join(' ');
+    try {
+      const rows = await sparql(`
+SELECT ?item ?cit ?cityLabel ?capitalOf WHERE {
+  VALUES ?item { ${values} }
+  OPTIONAL {
+    ?item wdt:P27 ?cit .
+    FILTER NOT EXISTS { ?cit wdt:P576 ?citDissolved }
+  }
+  OPTIONAL { ?item wdt:P19 ?city }
+  OPTIONAL {
+    ?item wdt:P19 ?bornCity .
+    ?capitalOf wdt:P36 ?bornCity .
+    ?capitalOf wdt:P31/wdt:P279* wd:Q3624078 .
+    FILTER NOT EXISTS { ?capitalOf wdt:P576 ?dissolved }
+  }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}`);
+
+      const citizenships = new Map<string, Set<string>>();
+      for (const row of rows) {
+        const qid = row.item?.value.split('/').pop();
+        if (!qid) continue;
+        const entry = out.get(qid) ?? { citizenships: 0, bornInCapital: false };
+        if (row.cit) {
+          const set = citizenships.get(qid) ?? new Set<string>();
+          set.add(row.cit.value);
+          citizenships.set(qid, set);
+          entry.citizenships = set.size;
+        }
+        if (row.cityLabel && !entry.birthCity) {
+          const city = row.cityLabel.value;
+          // Unlabelled items come back as bare QIDs; they are useless as a key.
+          if (!/^Q\d+$/.test(city)) entry.birthCity = city;
+        }
+        if (row.capitalOf) entry.bornInCapital = true;
+        out.set(qid, entry);
+      }
+    } catch (err) {
+      console.error(`  !! extras batch failed: ${err instanceof Error ? err.message : err}`);
+    }
+    process.stdout.write(`  pass 3: ${Math.min(i + BATCH_SIZE, qids.length)}/${qids.length}\r`);
+    await new Promise((r) => setTimeout(r, DELAY_MS));
+  }
+  console.log('');
+  return out;
+}
+
+/**
  * Picks between entities sharing a name. A confirmed sport match always wins;
  * otherwise the better-known entity (more Wikipedia sitelinks) does. Without
  * the sport check, "Sun Yue" resolves to a female volleyball player.
@@ -294,14 +369,10 @@ async function main(): Promise<void> {
 
   const byQid = await fetchByQids([...allQids]);
 
-  /** athleteId -> [heightCm | null, birthYear | null, gender | null, sitelinks | null] */
-  const entries: Record<string, [number | null, number | null, string | null, number | null]> = {};
-  let heights = 0;
-  let births = 0;
-  let genders = 0;
-  let reach = 0;
+  // Resolve the winning entity for every athlete first, so pass 3 only fetches
+  // facts for entities we have actually committed to.
+  const chosen = new Map<string, Candidate>();
   const unmatched: string[] = [];
-
   for (const athlete of ATHLETES) {
     let pool = candidatesFor(athlete);
     if (pool.length === 0) {
@@ -313,35 +384,77 @@ async function main(): Promise<void> {
       unmatched.push(`${athlete.name} (${athlete.sport})`);
       continue;
     }
-
     const best = choose(pool, athlete.sport);
+    if (best) chosen.set(athlete.id, best);
+  }
+
+  console.log(`pass 3: extra facts for ${chosen.size} resolved entities`);
+  const extras = await fetchExtras([...new Set([...chosen.values()].map((c) => c.qid))]);
+
+  /**
+   * athleteId ->
+   *   [heightCm, birthYear, gender, wikipediaLanguages, citizenships, birthCity, bornInCapital]
+   */
+  type Entry = [
+    number | null,
+    number | null,
+    string | null,
+    number | null,
+    number | null,
+    string | null,
+    0 | 1,
+  ];
+  const entries: Record<string, Entry> = {};
+  let heights = 0;
+  let births = 0;
+  let genders = 0;
+  let reach = 0;
+  let cities = 0;
+  let duals = 0;
+
+  for (const athlete of ATHLETES) {
+    const best = chosen.get(athlete.id);
     if (!best) continue;
 
+    const extra = extras.get(best.qid);
     const height = medianHeight(best.heights);
     const birthYear = best.birthYear ?? null;
     const gender = best.gender ?? null;
     // Sitelinks = how many language Wikipedias carry an article. A free,
     // stable proxy for global fame, and already fetched for disambiguation.
     const sitelinks = best.sitelinks > 0 ? best.sitelinks : null;
-    if (height === null && birthYear === null && gender === null && sitelinks === null) continue;
+    const citizenships = extra?.citizenships && extra.citizenships > 0 ? extra.citizenships : null;
+    const birthCity = extra?.birthCity ?? null;
+    const bornInCapital: 0 | 1 = extra?.bornInCapital ? 1 : 0;
+
+    if (
+      height === null && birthYear === null && gender === null &&
+      sitelinks === null && citizenships === null && birthCity === null
+    ) continue;
 
     if (height !== null) heights++;
     if (birthYear !== null) births++;
     if (gender !== null) genders++;
     if (sitelinks !== null) reach++;
-    entries[athlete.id] = [height, birthYear, gender, sitelinks];
+    if (birthCity !== null) cities++;
+    if (citizenships !== null && citizenships > 1) duals++;
+
+    entries[athlete.id] = [height, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital];
   }
 
   const pct = (n: number) => `${Math.round((100 * n) / ATHLETES.length)}%`;
   const output = {
     $schema:
-      'athleteId -> [heightCm | null, birthYear | null, gender "f" | "m" | null, wikipediaLanguages | null]',
-    source: 'Wikidata (P2048 height, P569 birth date, P21 gender, wikibase:sitelinks)',
+      'athleteId -> [heightCm, birthYear, gender "f"|"m", wikipediaLanguages, citizenships, birthCity, bornInCapital 0|1] — null where unknown',
+    source:
+      'Wikidata (P2048 height, P569 birth, P21 gender, sitelinks, P27 citizenship, P19 birthplace, P36 capital-of-country)',
     athletes: ATHLETES.length,
     withHeight: heights,
     withBirthYear: births,
     withGender: genders,
     withReach: reach,
+    withBirthCity: cities,
+    withDualNationality: duals,
     entries,
   };
 
@@ -353,6 +466,8 @@ async function main(): Promise<void> {
   console.log(`with birth yr: ${births} (${pct(births)})`);
   console.log(`with gender  : ${genders} (${pct(genders)})`);
   console.log(`with reach   : ${reach} (${pct(reach)})`);
+  console.log(`with city    : ${cities} (${pct(cities)})`);
+  console.log(`dual nationals: ${duals} (${pct(duals)})`);
   console.log(`unmatched    : ${unmatched.length}${unmatched.length ? ` — ${unmatched.slice(0, 10).join(', ')}` : ''}`);
   console.log(`wrote ${target}`);
 }

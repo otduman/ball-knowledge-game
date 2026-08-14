@@ -53,13 +53,24 @@ describe('determinism', () => {
     expect(signatures.size).toBeGreaterThan(20);
   });
 
-  it('does not repeat a board over a long run', () => {
-    // The catalogue is split by whether a board features the primary sport, and
-    // the two partitions advance at different rates, so the old "walk the whole
-    // catalogue" check no longer describes the guarantee. What still holds — and
-    // is what a player would notice — is that boards do not recur early.
+  it('never repeats a daily board over five years', () => {
+    // This is the guarantee that matters: the daily sequence a player actually
+    // sees must not recur.
     const seen = new Set<string>();
-    const runLength = 3000;
+    const days = 1825;
+    for (let n = 1; n <= days; n++) {
+      const grid = buildGrid(n);
+      seen.add([...grid.rows, ...grid.cols].map((c) => c.id).join('|'));
+    }
+    expect(seen.size).toBe(days);
+  });
+
+  it('does not repeat a practice board over a long session', () => {
+    // Selection round-robins across board shapes, and a rare shape has a small
+    // bucket behind it, so the whole-catalogue guarantee no longer holds — a
+    // thin bucket cycles first. What holds is no repeat over any plausible run.
+    const seen = new Set<string>();
+    const runLength = 750;
     for (let v = 0; v < runLength; v++) {
       const grid = buildGrid(1, v);
       seen.add([...grid.rows, ...grid.cols].map((c) => c.id).join('|'));

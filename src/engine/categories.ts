@@ -11,7 +11,15 @@ export type AxisId = 'row' | 'col';
  * Categories within a group are mutually exclusive by construction, so two of
  * them can share a board without overlapping or contradicting each other.
  */
-export type CategoryGroup = 'region' | 'country' | 'sport' | 'era' | 'letter' | 'reach';
+export type CategoryGroup =
+  | 'region'
+  | 'country'
+  | 'sport'
+  | 'era'
+  | 'letter'
+  | 'reach'
+  | 'origin'
+  | 'name';
 
 export interface Category {
   id: string;
@@ -197,6 +205,144 @@ export const REACH_CATEGORIES: readonly Category[] = REACH_BANDS.map((band) => (
     athlete.wikipediaLanguages < band.max,
 }));
 
+// ---- origin story --------------------------------------------------------
+
+/**
+ * Biographical rows measured as viable across football and the NBA. Each one
+ * survived a coverage probe; the ones that did not are recorded in the README
+ * so nobody re-proposes them.
+ */
+const ORIGIN_ROWS: Array<{ id: string; label: string; hint: string; matches: (a: Athlete) => boolean }> = [
+  {
+    id: 'dual',
+    label: 'Dual national',
+    hint: 'Holds citizenship of more than one country',
+    matches: (a) => a.citizenships !== undefined && a.citizenships > 1,
+  },
+  {
+    id: 'capital',
+    label: 'Born in a capital',
+    hint: 'Born in the capital city of a country',
+    matches: (a) => a.bornInCapital === true,
+  },
+  {
+    id: 'shared-city',
+    label: 'Shares a birth city',
+    hint: 'Born in the same city as another athlete in this game',
+    matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
+  },
+];
+
+/**
+ * Cities that produced more than one athlete in the roster. The pairings are
+ * the appeal: Lagos gives Osimhen alongside Olajuwon, Akron gives LeBron and
+ * Curry, Rosario gives Messi and Icardi.
+ */
+const SHARED_BIRTH_CITIES: ReadonlySet<string> = (() => {
+  const counts = new Map<string, number>();
+  for (const athlete of ATHLETES) {
+    if (athlete.birthCity) counts.set(athlete.birthCity, (counts.get(athlete.birthCity) ?? 0) + 1);
+  }
+  return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([city]) => city));
+})();
+
+export const ORIGIN_CATEGORIES: readonly Category[] = ORIGIN_ROWS.map((row) => ({
+  id: `origin:${row.id}`,
+  label: row.label,
+  axis: 'row' as const,
+  group: 'origin' as const,
+  hint: row.hint,
+  explain: true,
+  shortHint: row.hint,
+  matches: row.matches,
+})).filter((category) => isViableRow(category.matches));
+
+// ---- name shapes ---------------------------------------------------------
+
+/**
+ * Pure wordplay over the display name. No data fetch, 100% coverage, and the
+ * only row family that can never rot — which makes it the cheapest way to put
+ * a genuinely odd question on the board.
+ */
+const NAME_ROWS: Array<{ id: string; label: string; hint: string; matches: (a: Athlete) => boolean }> = [
+  {
+    id: 'mononym',
+    label: 'Known by one name',
+    hint: 'Goes by a single name — Pele, Neymar, Marta',
+    matches: (a) => tokens(a.name).length === 1,
+  },
+  {
+    id: 'alliterative',
+    label: 'Same initials',
+    hint: 'First name and family name start with the same letter',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      const first = parts[0]?.charAt(0);
+      const last = parts[parts.length - 1]?.charAt(0);
+      return parts.length > 1 && first !== undefined && first === last;
+    },
+  },
+  {
+    id: 'short-surname',
+    label: 'Short surname',
+    hint: 'Family name is four letters or fewer',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      const last = parts[parts.length - 1];
+      return parts.length > 1 && last !== undefined && last.length <= 4;
+    },
+  },
+  {
+    id: 'shared-surname',
+    label: 'Shared surname',
+    hint: 'Another athlete in this game has the same family name',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      const last = parts[parts.length - 1];
+      return last !== undefined && SHARED_SURNAMES.has(last);
+    },
+  },
+  {
+    id: 'double-letter',
+    label: 'Double letter',
+    hint: 'Family name contains the same letter twice in a row',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      const last = parts[parts.length - 1] ?? '';
+      return /(.)\1/.test(last);
+    },
+  },
+];
+
+/**
+ * Derived from the display name rather than Wikidata's P734 "family name".
+ * P734 records the legal name — Cristiano Ronaldo's is "Aveiro" and Salah's is
+ * "Ghaly" — so it would never link the names players actually use, and it
+ * returns unlabelled QIDs that a label-keyed index would merge into one bogus
+ * surname group.
+ */
+const SHARED_SURNAMES: ReadonlySet<string> = (() => {
+  const counts = new Map<string, number>();
+  for (const athlete of ATHLETES) {
+    const parts = tokens(athlete.name);
+    if (parts.length < 2) continue;
+    const last = parts[parts.length - 1] as string;
+    counts.set(last, (counts.get(last) ?? 0) + 1);
+  }
+  return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([name]) => name));
+})();
+
+export const NAME_CATEGORIES: readonly Category[] = NAME_ROWS.map((row) => ({
+  id: `name:${row.id}`,
+  label: row.label,
+  axis: 'row' as const,
+  group: 'name' as const,
+  hint: row.hint,
+  explain: true,
+  shortHint: row.hint,
+  matches: row.matches,
+})).filter((category) => isViableRow(category.matches));
+
 // ---- sports (columns) ----------------------------------------------------
 
 const SPORT_HINTS: Record<SportId, string> = {
@@ -227,6 +373,8 @@ export const ROW_CATEGORIES: readonly Category[] = [
   ...COUNTRY_CATEGORIES,
   ...ERA_CATEGORIES,
   ...REACH_CATEGORIES,
+  ...ORIGIN_CATEGORIES,
+  ...NAME_CATEGORIES,
   ...LETTER_CATEGORIES,
 ];
 

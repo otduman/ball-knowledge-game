@@ -9,6 +9,8 @@ import {
   ERA_CATEGORIES,
   GEOGRAPHIC_GROUPS,
   LETTER_CATEGORIES,
+  NAME_CATEGORIES,
+  ORIGIN_CATEGORIES,
   REACH_CATEGORIES,
   ROW_CATEGORIES,
 } from '../src/engine/categories';
@@ -18,20 +20,47 @@ import { poolFor } from '../src/engine/pools';
 const entries = raw.entries as unknown as Record<string, unknown>;
 
 describe('enrichment data', () => {
-  it('stores every entry as a [height, year, gender, reach] tuple', () => {
+  it('stores every entry as a 7-field tuple of the right types', () => {
     const malformed: string[] = [];
     for (const [id, value] of Object.entries(entries)) {
-      if (!Array.isArray(value) || value.length !== 4) {
+      if (!Array.isArray(value) || value.length !== 7) {
         malformed.push(`${id}: bad shape`);
         continue;
       }
-      const [height, year, gender, reach] = value as unknown[];
+      const [height, year, gender, reach, citizenships, city, capital] = value as unknown[];
       if (height !== null && typeof height !== 'number') malformed.push(`${id}: height`);
       if (year !== null && typeof year !== 'number') malformed.push(`${id}: year`);
       if (gender !== null && gender !== 'f' && gender !== 'm') malformed.push(`${id}: gender`);
       if (reach !== null && (typeof reach !== 'number' || reach < 1)) malformed.push(`${id}: reach`);
+      if (citizenships !== null && (typeof citizenships !== 'number' || citizenships < 1)) {
+        malformed.push(`${id}: citizenships`);
+      }
+      if (city !== null && typeof city !== 'string') malformed.push(`${id}: city`);
+      if (capital !== 0 && capital !== 1) malformed.push(`${id}: capital`);
     }
     expect(malformed).toEqual([]);
+  });
+
+  it('never records a birth city as a bare Wikidata QID', () => {
+    // Unlabelled items come back as "Q20518844"; keyed as a city they would
+    // silently clump unrelated athletes into one fake shared-birthplace group.
+    const bare = ATHLETES.filter((a) => a.birthCity !== undefined && /^Q\d+$/.test(a.birthCity));
+    expect(bare.map((a) => `${a.name}=${a.birthCity}`)).toEqual([]);
+  });
+
+  it('restricts "born in a capital" to national capitals', () => {
+    const capitalBorn = (name: string) => ATHLETES.find((a) => a.name === name)?.bornInCapital === true;
+    expect(capitalBorn('Kylian Mbappe')).toBe(true);   // Paris
+    expect(capitalBorn('Robert Lewandowski')).toBe(true); // Warsaw
+    // Regional capitals must NOT count. Manchester is the capital of Greater
+    // Manchester, which once made 68% of footballers read as capital-born.
+    expect(capitalBorn('Marcus Rashford')).toBe(false); // Manchester
+    expect(capitalBorn('Wayne Rooney')).toBe(false);    // Liverpool
+    expect(capitalBorn('Erling Haaland')).toBe(false);  // Leeds
+
+    const share = ATHLETES.filter((a) => a.bornInCapital).length / ATHLETES.length;
+    expect(share).toBeGreaterThan(0.05);
+    expect(share).toBeLessThan(0.35);
   });
 
   it('only references athletes that exist in the roster', () => {
@@ -165,6 +194,56 @@ describe('Wikipedia reach', () => {
       for (const col of COL_CATEGORIES) {
         expect(poolFor(row, col).length).toBeLessThan(DEFAULT_CONSTRAINTS.widePool);
       }
+    }
+  });
+});
+
+describe('origin and name rows', () => {
+  it('only keeps rows that can fill three columns', () => {
+    for (const row of [...ORIGIN_CATEGORIES, ...NAME_CATEGORIES]) {
+      const usable = COL_CATEGORIES.filter(
+        (col) => poolFor(row, col).length >= DEFAULT_CONSTRAINTS.minPool,
+      ).length;
+      expect(usable, `${row.label}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('derives shared surnames from the display name, not Wikidata P734', () => {
+    const shared = NAME_CATEGORIES.find((c) => c.label === 'Shared surname');
+    if (!shared) return;
+    const byName = (n: string) => ATHLETES.find((a) => a.name === n)!;
+    // P734 records the legal name — Ronaldo's is "Aveiro" — so it would never
+    // link the names players actually type.
+    expect(shared.matches(byName('Pau Gasol'))).toBe(true);
+    expect(shared.matches(byName('Marc Gasol'))).toBe(true);
+    expect(shared.matches(byName('Manute Bol'))).toBe(true);
+  });
+
+  it('matches mononyms only when the athlete really goes by one name', () => {
+    const mononym = NAME_CATEGORIES.find((c) => c.label === 'Known by one name');
+    if (!mononym) return;
+    const byName = (n: string) => ATHLETES.find((a) => a.name === n)!;
+    expect(mononym.matches(byName('Neymar'))).toBe(true);
+    expect(mononym.matches(byName('Lionel Messi'))).toBe(false);
+  });
+
+  it('pairs athletes who really share a birth city', () => {
+    const shared = ORIGIN_CATEGORIES.find((c) => c.label === 'Shares a birth city');
+    if (!shared) return;
+    const byName = (n: string) => ATHLETES.find((a) => a.name === n)!;
+    // LeBron James and Stephen Curry were both born in Akron.
+    expect(byName('LeBron James').birthCity).toBe(byName('Stephen Curry').birthCity);
+    expect(shared.matches(byName('LeBron James'))).toBe(true);
+  });
+
+  it('never matches an athlete whose underlying fact is missing', () => {
+    const dual = ORIGIN_CATEGORIES.find((c) => c.label === 'Dual national');
+    const capital = ORIGIN_CATEGORIES.find((c) => c.label === 'Born in a capital');
+    for (const athlete of ATHLETES.filter((a) => a.citizenships === undefined)) {
+      expect(dual?.matches(athlete) ?? false).toBe(false);
+    }
+    for (const athlete of ATHLETES.filter((a) => a.bornInCapital === undefined)) {
+      expect(capital?.matches(athlete) ?? false).toBe(false);
     }
   });
 });

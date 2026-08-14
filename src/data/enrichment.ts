@@ -6,7 +6,15 @@ import type { Athlete } from './types';
  * Stored as `[heightCm | null, birthYear | null]` tuples to keep the shipped
  * payload small; at ~1600 entries an object-per-athlete would roughly triple it.
  */
-type Entry = [number | null, number | null, string | null, number | null];
+type Entry = [
+  number | null, // heightCm
+  number | null, // birthYear
+  string | null, // gender
+  number | null, // wikipediaLanguages
+  number | null, // citizenships
+  string | null, // birthCity
+  0 | 1, // bornInCapital
+];
 
 // TypeScript widens JSON array literals, losing the tuple arity, so the cast
 // has to go through `unknown`. The shape is guaranteed by the generator and
@@ -18,18 +26,24 @@ export interface Enrichment {
   birthYear?: number;
   gender?: 'f' | 'm';
   wikipediaLanguages?: number;
+  citizenships?: number;
+  birthCity?: string;
+  bornInCapital?: boolean;
 }
 
 export function enrichmentFor(athleteId: string): Enrichment {
   const entry = ENTRIES[athleteId];
   if (!entry) return {};
 
-  const [heightCm, birthYear, gender, sitelinks] = entry;
+  const [heightCm, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital] = entry;
   const out: Enrichment = {};
   if (typeof heightCm === 'number') out.heightCm = heightCm;
   if (typeof birthYear === 'number') out.birthYear = birthYear;
   if (gender === 'f' || gender === 'm') out.gender = gender;
   if (typeof sitelinks === 'number') out.wikipediaLanguages = sitelinks;
+  if (typeof citizenships === 'number') out.citizenships = citizenships;
+  if (typeof birthCity === 'string') out.birthCity = birthCity;
+  if (bornInCapital === 1) out.bornInCapital = true;
   return out;
 }
 

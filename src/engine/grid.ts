@@ -190,6 +190,30 @@ function signatureOf(entry: { rows: Category[] }): string {
   return entry.rows.map((r) => r.group).sort().join('+');
 }
 
+interface Partitions {
+  withPrimary: Catalog;
+  withoutPrimary: Catalog;
+}
+
+// Splitting a 60k-entry catalogue is O(n); doing it per call made building a
+// board scale with the catalogue rather than being effectively free.
+const PARTITION_CACHE = new Map<string, Partitions>();
+
+function partitionsFor(pool: Catalog, key: string): Partitions {
+  const cached = PARTITION_CACHE.get(key);
+  if (cached) return cached;
+
+  const withPrimary: Catalog = [];
+  const withoutPrimary: Catalog = [];
+  for (const entry of pool) {
+    if (entry.cols.some((c) => c.id === PRIMARY_COLUMN_ID)) withPrimary.push(entry);
+    else withoutPrimary.push(entry);
+  }
+  const partitions: Partitions = { withPrimary, withoutPrimary };
+  PARTITION_CACHE.set(key, partitions);
+  return partitions;
+}
+
 interface Strata {
   signatures: string[];
   bySignature: Map<string, Catalog>;
@@ -252,8 +276,7 @@ export function buildGrid(number: number, variant = 0): Grid {
   // each side on its own permutation. Weighting this way keeps the "no repeat
   // until exhausted" guarantee inside each partition, which duplicating
   // entries in a single list would have broken.
-  const withPrimary = pool.filter((g) => g.cols.some((c) => c.id === PRIMARY_COLUMN_ID));
-  const withoutPrimary = pool.filter((g) => !g.cols.some((c) => c.id === PRIMARY_COLUMN_ID));
+  const { withPrimary, withoutPrimary } = partitionsFor(pool, key);
 
   const cycleLength = PRIMARY_COLUMN_CYCLE + 1;
   const wantsOther = ordinal % cycleLength === cycleLength - 1;

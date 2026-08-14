@@ -57,4 +57,14 @@ export interface Athlete {
    * do they have", which Wikidata does not record and which changes daily.
    */
   wikipediaLanguages?: number;
+  /** Count of current citizenships; >1 powers the dual-nationality row. */
+  citizenships?: number;
+  /** Birth city label, used to pair athletes born in the same place. */
+  birthCity?: string;
+  /**
+   * Derived country-first (`country wdt:P36 city`), never city-first via
+   * P1376 "capital of" — that property counts historic and sub-national
+   * capitals and would claim New York City is a capital of the United States.
+   */
+  bornInCapital?: boolean;
 }

@@ -8,6 +8,8 @@ const GROUP_LABEL: Record<Category['group'], string> = {
   era: 'Year of birth',
   letter: 'Family name',
   reach: 'How widely they are known',
+  origin: 'Where they come from',
+  name: 'Their name',
 };
 
 /**

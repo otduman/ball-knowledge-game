@@ -11,8 +11,9 @@ SPAIN               +           +          +
 SURNAME F           +           +          +
 ```
 
-Rows mix regions, countries, birth decades, Wikipedia reach and surname
-initials; columns are sports, and which three sports appear changes day to day.
+Rows mix regions, countries, birth decades, Wikipedia reach, origin stories
+(dual nationals, capital-born, shared birth cities), name shapes and surname
+initials; columns are sports, and which three appear changes day to day.
 
 **Ambiguous headings explain themselves.** "Southern Europe" quietly includes
 Spain and Portugal, and a player has no way to know that before spending a
@@ -25,12 +26,12 @@ guessing. Self-evident headings ("Spain", "Surname F") get none of that.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 79 tests
+npm test           # 87 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
 The build output is a static site with no backend — the whole game, database
-included, is ~50 KB gzipped.
+included, is ~65 KB gzipped.
 
 ### Why Vite 6 and not 8
 
@@ -73,7 +74,7 @@ cell. Rarity score is `100 - pop`, so an obvious pick is worth ~45 and a deep cu
 Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 300 tennis, across 98 countries.
 
-### Rows: 50 of them, in five groups
+### Rows: 57 of them, in seven groups
 
 | group | count | examples |
 |---|---|---|
@@ -82,6 +83,8 @@ Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 | Born decade | 5 | Born 1980s, Born 2000s |
 | Surname initial | 20 | Surname K, Surname M, Surname S |
 | Wikipedia reach | 2 | Global name, Deep cut |
+| Origin | 3 | Dual national, Born in a capital, Shares a birth city |
+| Name shape | 4 | Known by one name, Shared surname, Double letter |
 
 `country → region` resolves through one table in [regions.ts](src/data/regions.ts),
 so classification is auditable in one place. Country and letter rows are
@@ -126,7 +129,7 @@ comfortable, then walks that catalogue in a seeded permutation:
 
 - Every board is solvable. There is no "UK & Ireland × NBA" cell, because the
   roster has only four such players and the feasibility check rejects it.
-- **34,342** boards are feasible, and none repeats over any realistic run.
+- **60,173** boards are feasible, and none repeats over any realistic run.
 
 There is also a **difficulty budget**. A cell offering 150+ valid answers is
 near-free — almost any well-known name in that sport works — so at most one is
@@ -141,8 +144,10 @@ produced boards that felt alike:
   row kinds they use ("country+letter+region"), not uniformly across the
   catalogue. Uniform sampling makes a group's airtime proportional to how many
   rows it contains, so 20 letters took 40% of row slots while 2 reach bands took
-  3%. Stratifying gives each *kind* of board equal exposure: letters and reach
-  now sit at 13% each, regions 28%, countries 29%, decades 19%.
+  3%. Stratifying gives each *kind* of board equal exposure — across seven groups
+  the spread is now regions 24%, countries 24%, decades 12%, name shapes 12%,
+  origin 11%, letters 9%, reach 8%, and boards carrying a letter row fell from
+  85% to 27%.
 - **Football is weighted.** It is the sport most players know and has the
   deepest roster, so the catalogue is split on whether a board features it and
   each side walks its own permutation. Football headlines 86% of boards rather
