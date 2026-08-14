@@ -1,27 +1,24 @@
 import type { Category, CategoryGroup } from './categories';
-import { GEOGRAPHIC_GROUPS, colsForSports, rowsForSports } from './categories';
-import type { GameMode, GridConstraints, ModeId } from './modes';
-import { DEFAULT_MODE, MODES } from './modes';
+import { colsForSports, rowsForSports } from './categories';
+import type { Level } from './levels';
+import { COLUMN_SPORTS, MAX_DEPTH, levelAt } from './levels';
 import { poolFor } from './pools';
 import { hashString, mulberry32, shuffle } from './rng';
 
-export type { GridConstraints } from './modes';
-
-export interface Grid {
-  /** Puzzle number, 1-based from the epoch. Shown as "Grid No. 042". */
+export interface Board {
+  /** Puzzle number, 1-based from the epoch: which day's dive this is. */
   number: number;
-  /** 0 for the daily grid; 1+ for extra practice grids on the same day. */
+  /** 1-based depth within that dive. */
+  depth: number;
+  /** 0 for the day's dive; 1+ for extra practice runs. */
   variant: number;
-  mode: ModeId;
   label: string;
   rows: Category[];
   cols: Category[];
 }
 
-export const DEFAULT_CONSTRAINTS: GridConstraints = MODES.daily.constraints;
-
-export function cellCount(grid: Grid): number {
-  return grid.rows.length * grid.cols.length;
+export function cellCount(board: Board): number {
+  return board.rows.length * board.cols.length;
 }
 
 function combinations<T>(items: readonly T[], size: number): T[][] {
@@ -47,113 +44,74 @@ function combinations<T>(items: readonly T[], size: number): T[][] {
 export function isFeasible(
   rows: readonly Category[],
   cols: readonly Category[],
-  constraints: GridConstraints,
+  level: Level,
 ): boolean {
-  const geographic = rows.filter((r) => GEOGRAPHIC_GROUPS.includes(r.group)).length;
-  if (geographic < constraints.minGeographicRows) return false;
-
   const perGroup = new Map<CategoryGroup, number>();
   for (const row of rows) {
     const next = (perGroup.get(row.group) ?? 0) + 1;
-    const cap = constraints.maxRowsByGroup[row.group] ?? constraints.maxRowsPerGroup;
-    if (next > cap) return false;
+    if (next > level.maxRowsPerGroup) return false;
     perGroup.set(row.group, next);
   }
+  if (perGroup.size < level.minDistinctGroups) return false;
 
-  let generous = 0;
-  let wide = 0;
   for (const row of rows) {
     for (const col of cols) {
       const size = poolFor(row, col).length;
-      if (size < constraints.minPool) return false;
-      if (size >= constraints.generousPool) generous++;
-      if (size >= constraints.widePool) {
-        wide++;
-        if (wide > constraints.maxWideCells) return false;
-      }
+      if (size < level.minPool) return false;
+      if (size > level.maxPool) return false;
     }
   }
-  return generous >= constraints.minGenerousCells;
+  return true;
 }
 
-/** Every row/column combination that satisfies the constraints, in stable order. */
-export function feasibleGrids(
-  constraints: GridConstraints = DEFAULT_CONSTRAINTS,
-  mode: GameMode = MODES[DEFAULT_MODE],
-): Array<{ rows: Category[]; cols: Category[] }> {
-  const rowSets = combinations(rowsForSports(mode.sportIds, mode.colCount), mode.rowCount);
-  const colSets = combinations(colsForSports(mode.sportIds), mode.colCount);
+/**
+ * Rows whose own cells fall inside a level's window. Filtering here rather than
+ * inside the combination walk is the difference between enumerating C(148, 4)
+ * — nearly 20 million sets, almost all rejected on their first cell — and
+ * C(39, 4). Every rejected row would have been rejected in every set containing
+ * it, so this changes only the cost.
+ */
+function rowsInWindow(level: Level, cols: readonly Category[]): Category[] {
+  return rowsForSports(COLUMN_SPORTS).filter((row) =>
+    cols.every((col) => {
+      const size = poolFor(row, col).length;
+      return size >= level.minPool && size <= level.maxPool;
+    }),
+  );
+}
+
+/** Every row combination playable at a depth, in stable order. */
+export function feasibleBoards(level: Level): Array<{ rows: Category[]; cols: Category[] }> {
+  const cols = [...colsForSports(COLUMN_SPORTS)];
   const out: Array<{ rows: Category[]; cols: Category[] }> = [];
 
-  for (const rows of rowSets) {
-    for (const cols of colSets) {
-      if (isFeasible(rows, cols, constraints)) out.push({ rows, cols });
-    }
+  for (const rows of combinations(rowsInWindow(level, cols), level.rowCount)) {
+    if (isFeasible(rows, cols, level)) out.push({ rows, cols });
   }
   return out;
 }
 
 type Catalog = Array<{ rows: Category[]; cols: Category[] }>;
 
-function constraintKey(c: GridConstraints): string {
-  return [
-    c.minPool,
-    c.minGenerousCells,
-    c.generousPool,
-    c.widePool,
-    c.maxWideCells,
-    c.minGeographicRows,
-    c.maxRowsPerGroup,
-    JSON.stringify(c.maxRowsByGroup),
-  ].join(':');
-}
+const CATALOG_CACHE = new Map<number, Catalog>();
 
-const CATALOG_CACHE = new Map<string, Catalog>();
-
-function catalog(mode: GameMode, constraints: GridConstraints): Catalog {
-  const key = `${mode.id}#${constraintKey(constraints)}`;
-  const cached = CATALOG_CACHE.get(key);
+function catalog(level: Level): Catalog {
+  const cached = CATALOG_CACHE.get(level.depth);
   if (cached) return cached;
-  const built = feasibleGrids(constraints, mode);
-  CATALOG_CACHE.set(key, built);
+  const built = feasibleBoards(level);
+  CATALOG_CACHE.set(level.depth, built);
   return built;
 }
 
 /**
- * The multiset of row *kinds* on a board — "country+letter+region". Boards are
- * served round-robin across signatures rather than uniformly across the
- * catalogue, because uniform sampling makes a group's airtime proportional to
- * how many rows it happens to contain. With 20 letters against 2 reach bands,
- * that buried reach on 3% of row slots while letters took 40%. Stratifying by
- * signature gives each *kind of board* equal exposure, so adding two rows of a
- * new kind actually changes what players see.
+ * The multiset of row *kinds* on a board — "country+letter". Boards are served
+ * round-robin across signatures rather than uniformly across the catalogue,
+ * because uniform sampling makes a group's airtime proportional to how many
+ * rows it happens to contain. With 21 surname letters against 2 reach bands,
+ * that buried reach on 3% of row slots while letters took 40%.
  */
 function signatureOf(entry: { rows: Category[] }): string {
   return entry.rows.map((r) => r.group).sort().join('+');
-}
-
-interface Partitions {
-  withPrimary: Catalog;
-  withoutPrimary: Catalog;
-}
-
-// Splitting a 60k-entry catalogue is O(n); doing it per call made building a
-// board scale with the catalogue rather than being effectively free.
-const PARTITION_CACHE = new Map<string, Partitions>();
-
-function partitionsFor(pool: Catalog, primaryColumnId: string, key: string): Partitions {
-  const cached = PARTITION_CACHE.get(key);
-  if (cached) return cached;
-
-  const withPrimary: Catalog = [];
-  const withoutPrimary: Catalog = [];
-  for (const entry of pool) {
-    if (entry.cols.some((c) => c.id === primaryColumnId)) withPrimary.push(entry);
-    else withoutPrimary.push(entry);
-  }
-  const partitions: Partitions = { withPrimary, withoutPrimary };
-  PARTITION_CACHE.set(key, partitions);
-  return partitions;
 }
 
 interface Strata {
@@ -161,21 +119,24 @@ interface Strata {
   bySignature: Map<string, Catalog>;
 }
 
-const STRATA_CACHE = new Map<string, Strata>();
+const STRATA_CACHE = new Map<number, Strata>();
 
 /**
- * Strata thinner than this are pooled together rather than given a slot of
- * their own. Equal airtime across shapes is only free while every shape has
- * enough boards to sustain it: the duel catalogue has shapes holding two boards
- * against shapes holding six hundred, and handing the pair a full 1-in-20 slot
- * recycled it every 40 boards. Nothing in the daily catalogue is this thin — its
- * smallest stratum holds 76 — so this is inert there by construction.
+ * Strata thinner than this are pooled rather than given a slot of their own.
+ * Equal airtime per shape is only free while every shape has enough boards to
+ * sustain it: a shape is served once every `signatures.length` boards, so one
+ * holding two boards recycles almost immediately. The floor scales with the
+ * catalogue because a fixed number is meaningless across depths whose
+ * catalogues differ by an order of magnitude.
  */
-const MIN_STRATUM = 25;
+function minStratum(poolSize: number): number {
+  return Math.max(25, Math.floor(poolSize / 3));
+}
+
 const MISC_SIGNATURE = '*';
 
-function strataFor(pool: Catalog, key: string): Strata {
-  const cached = STRATA_CACHE.get(key);
+function strataFor(pool: Catalog, depth: number): Strata {
+  const cached = STRATA_CACHE.get(depth);
   if (cached) return cached;
 
   const grouped = new Map<string, Catalog>();
@@ -186,22 +147,23 @@ function strataFor(pool: Catalog, key: string): Strata {
     grouped.set(sig, list);
   }
 
+  const floor = minStratum(pool.length);
   const bySignature = new Map<string, Catalog>();
   const misc: Catalog = [];
   for (const sig of [...grouped.keys()].sort()) {
     const list = grouped.get(sig) as Catalog;
-    if (list.length >= MIN_STRATUM) bySignature.set(sig, list);
+    if (list.length >= floor) bySignature.set(sig, list);
     else misc.push(...list);
   }
   if (misc.length > 0) bySignature.set(MISC_SIGNATURE, misc);
 
   const strata: Strata = { signatures: [...bySignature.keys()].sort(), bySignature };
-  STRATA_CACHE.set(key, strata);
+  STRATA_CACHE.set(depth, strata);
   return strata;
 }
 
-// Shuffling the catalogue is O(n) and the catalogue is large, so the ordering
-// for a cycle is computed once instead of on every buildGrid call.
+// Shuffling a catalogue is O(n), so the ordering for a cycle is computed once
+// instead of on every board build.
 const PERMUTATION_CACHE = new Map<string, Catalog>();
 
 function permutationFor(pool: Catalog, cycle: number, key: string): Catalog {
@@ -214,15 +176,14 @@ function permutationFor(pool: Catalog, cycle: number, key: string): Catalog {
 }
 
 /**
- * Where a board sits in the walk. Daily boards take the front of the index
+ * Where a board sits in the walk. Daily dives take the front of the index
  * space, one per puzzle number, so the sequence a player actually sees walks
- * the catalogue densely; practice boards live past `DAILY_SPAN`.
+ * the catalogue densely; practice runs live past `DAILY_SPAN`.
  *
  * The obvious `(number - 1) * 8 + variant` is dense over all boards but makes
- * the *daily* track a stride-8 subsequence, and the round-robin over board
- * shapes reads `index % shapeCount`. Whenever that stride shared a factor with
- * the shape count the round-robin collapsed: the duel has 16 shapes and its
- * daily track visited two of them, repeating a board every 62 days.
+ * the daily track a stride-8 subsequence, and the round-robin over board shapes
+ * reads `index % shapeCount`. Whenever that stride shares a factor with the
+ * shape count the round-robin collapses onto a handful of shapes.
  */
 const DAILY_SPAN = 100_000;
 const PRACTICE_PER_DAY = 7;
@@ -234,75 +195,47 @@ function ordinalFor(number: number, variant: number): number {
 }
 
 /**
- * Builds the grid for a puzzle number. Deterministic: the same number and mode
- * always yield the same board.
+ * Builds one board of a dive. Deterministic: the same day and depth always
+ * yield the same board.
  *
  * Selection walks a seeded permutation of the feasible catalogue rather than
- * picking at random, so every grid is used once before any repeats.
+ * picking at random, so every board is used once before any repeats.
  */
-export function buildGrid(number: number, variant = 0, modeId: ModeId = DEFAULT_MODE): Grid {
-  const mode = MODES[modeId];
-
-  let pool: Catalog = [];
-  let usedConstraints = mode.constraints;
-  for (const constraints of mode.relaxations) {
-    pool = catalog(mode, constraints);
-    usedConstraints = constraints;
-    if (pool.length > 0) break;
-  }
+export function buildBoard(number: number, depth: number, variant = 0): Board {
+  const level = levelAt(depth);
+  const pool = catalog(level);
   if (pool.length === 0) {
-    throw new Error(`No feasible ${mode.id} grid exists for the current roster.`);
+    throw new Error(`No feasible board at depth ${level.depth} for the current roster.`);
   }
 
-  const ordinal = ordinalFor(number, variant);
-  const key = `${mode.id}#${constraintKey(usedConstraints)}`;
+  // Offset each depth into its own stretch of the walk, so the levels of one
+  // dive are not all drawn from the same position in their catalogues.
+  const index = ordinalFor(number, variant) + level.depth * 977;
 
-  // Split the catalogue by whether it features the primary sport, then walk
-  // each side on its own permutation. Weighting this way keeps the "no repeat
-  // until exhausted" guarantee inside each partition, which duplicating
-  // entries in a single list would have broken.
-  let partition = pool;
-  let index = ordinal;
-  let partitionKey = key;
-
-  if (mode.primaryColumnId !== null) {
-    const { withPrimary, withoutPrimary } = partitionsFor(pool, mode.primaryColumnId, key);
-    const cycleLength = mode.primaryColumnCycle + 1;
-    const wantsOther = ordinal % cycleLength === cycleLength - 1;
-    const othersBefore = Math.floor(ordinal / cycleLength);
-
-    partition = withPrimary;
-    index = ordinal - othersBefore;
-    partitionKey = `${key}#primary`;
-
-    if ((wantsOther && withoutPrimary.length > 0) || withPrimary.length === 0) {
-      partition = withoutPrimary;
-      index = othersBefore;
-      partitionKey = `${key}#other`;
-    }
-    if (partition.length === 0) partition = pool;
-  }
-
-  // Round-robin across board shapes, then walk each shape's own permutation.
-  const { signatures, bySignature } = strataFor(partition, partitionKey);
+  const { signatures, bySignature } = strataFor(pool, level.depth);
   const signature = signatures[index % signatures.length] as string;
   const bucket = bySignature.get(signature) as Catalog;
   const withinIndex = Math.floor(index / signatures.length);
 
   const cycle = Math.floor(withinIndex / bucket.length);
-  const order = permutationFor(bucket, cycle, `${partitionKey}#${signature}`);
+  const order = permutationFor(bucket, cycle, `${level.depth}#${signature}`);
   const picked = order[withinIndex % bucket.length] as { rows: Category[]; cols: Category[] };
 
-  const layoutRng = mulberry32(hashString(`layout:${mode.id}:${number}:${variant}`));
+  const layoutRng = mulberry32(hashString(`layout:${number}:${depth}:${variant}`));
   return {
     number,
+    depth: level.depth,
     variant,
-    mode: mode.id,
-    label:
-      variant === 0
-        ? `${mode.boardName} No. ${String(number).padStart(3, '0')}`
-        : `${mode.boardName} practice ${variant}`,
+    label: variant === 0 ? `Dive No. ${String(number).padStart(3, '0')}` : `Practice dive ${variant}`,
     rows: shuffle(picked.rows, layoutRng),
     cols: shuffle(picked.cols, layoutRng),
   };
+}
+
+/** Board counts per depth, for the dive probe and the feasibility tests. */
+export function catalogSizes(): Array<{ depth: number; boards: number }> {
+  return Array.from({ length: MAX_DEPTH }, (_, i) => ({
+    depth: i + 1,
+    boards: catalog(levelAt(i + 1)).length,
+  }));
 }

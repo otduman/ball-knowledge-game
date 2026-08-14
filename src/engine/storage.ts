@@ -1,19 +1,16 @@
 import { athleteById } from '../data/rosters';
-import type { GameState } from './game';
-import { startingGuesses } from './game';
-import type { Grid } from './grid';
-import { cellCount } from './grid';
-import type { ModeId } from './modes';
-import { cellKey } from './pools';
+import type { DiveState } from './dive';
+import { diveCellKey } from './dive';
+import { buildBoard } from './grid';
+import { MAX_DEPTH, guessesAt } from './levels';
 
-// v2 keys the save on the mode as well. Under v1 a daily board and a duel with
-// the same number would have shared a slot, and a v1 save carries no mode or
-// cell count to validate against.
-const VERSION = 2;
+// v3 stores a dive rather than a single board. Earlier saves describe a game
+// that no longer exists, so the prefix change discards them.
+const VERSION = 3;
 const PREFIX = `bk:v${VERSION}`;
 
-function storageKey(mode: ModeId, gridNumber: number, variant: number): string {
-  return `${PREFIX}:${mode}:${gridNumber}:${variant}`;
+function storageKey(day: number, variant: number): string {
+  return `${PREFIX}:${day}:${variant}`;
 }
 
 function storage(): Storage | null {
@@ -28,75 +25,86 @@ function storage(): Storage | null {
   }
 }
 
-export function saveGame(state: GameState): void {
+export function saveDive(state: DiveState): void {
   const store = storage();
   if (!store) return;
   try {
     store.setItem(
-      storageKey(state.mode, state.gridNumber, state.variant),
-      JSON.stringify({ solved: state.solved, guessesLeft: state.guessesLeft }),
+      storageKey(state.day, state.variant),
+      JSON.stringify({
+        depth: state.depth,
+        guessesLeft: state.guessesLeft,
+        solved: state.solved,
+        deepestCleared: state.deepestCleared,
+        status: state.status,
+      }),
     );
   } catch {
-    // A full quota should never cost the player their in-memory game.
+    // A full quota should never cost the player their in-memory dive.
   }
 }
 
 /**
- * Rehydrates saved progress, discarding anything that no longer holds. Roster
- * edits between releases can invalidate a stored answer, and silently keeping a
- * cell that the current data would reject makes the board lie about the score.
+ * Rehydrates a dive, discarding anything that no longer holds. Roster edits
+ * between releases can invalidate a stored answer, and silently keeping a cell
+ * the current data would reject makes the board lie about the score.
  */
-export function loadGame(grid: Grid): GameState | null {
+export function loadDive(day: number, variant: number): DiveState | null {
   const store = storage();
   if (!store) return null;
 
-  const raw = store.getItem(storageKey(grid.mode, grid.number, grid.variant));
+  const raw = store.getItem(storageKey(day, variant));
   if (!raw) return null;
 
   try {
-    const parsed = JSON.parse(raw) as { solved?: unknown; guessesLeft?: unknown };
-    const solvedRaw = parsed.solved;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const depth = parsed.depth;
     const guessesLeft = parsed.guessesLeft;
+    const solvedRaw = parsed.solved;
 
+    if (typeof depth !== 'number' || !Number.isInteger(depth) || depth < 1 || depth > MAX_DEPTH) {
+      return null;
+    }
     if (typeof guessesLeft !== 'number' || !Number.isInteger(guessesLeft)) return null;
-    if (guessesLeft < 0 || guessesLeft > startingGuesses(grid)) return null;
+    if (guessesLeft < 0 || guessesLeft > guessesAt(depth)) return null;
     if (typeof solvedRaw !== 'object' || solvedRaw === null) return null;
 
+    // Re-derive every solved cell from the boards themselves, so a stored key
+    // that no longer names a real cell simply vanishes.
     const solved: Record<string, string> = {};
-    const used = new Set<string>();
+    let deepestCleared = 0;
 
-    for (const row of grid.rows) {
-      for (const col of grid.cols) {
-        const key = cellKey(row.id, col.id);
-        const id = (solvedRaw as Record<string, unknown>)[key];
-        if (typeof id !== 'string') continue;
+    for (let d = 1; d <= depth; d++) {
+      const board = buildBoard(day, d, variant);
+      const used = new Set<string>();
+      let filled = 0;
 
-        const athlete = athleteById(id);
-        if (!athlete) continue;
-        if (used.has(id)) continue;
-        if (!row.matches(athlete) || !col.matches(athlete)) continue;
+      for (const row of board.rows) {
+        for (const col of board.cols) {
+          const key = diveCellKey(d, row.id, col.id);
+          const id = (solvedRaw as Record<string, unknown>)[key];
+          if (typeof id !== 'string') continue;
 
-        solved[key] = id;
-        used.add(id);
+          const athlete = athleteById(id);
+          if (!athlete) continue;
+          if (used.has(id)) continue;
+          if (!row.matches(athlete) || !col.matches(athlete)) continue;
+
+          solved[key] = id;
+          used.add(id);
+          filled++;
+        }
       }
+      if (filled === board.rows.length * board.cols.length) deepestCleared = d;
     }
 
-    const count = Object.keys(solved).length;
-    const totalCells = cellCount(grid);
-    return {
-      gridNumber: grid.number,
-      variant: grid.variant,
-      mode: grid.mode,
-      totalCells,
-      solved,
-      guessesLeft,
-      status: guessesLeft <= 0 || count >= totalCells ? 'finished' : 'playing',
-    };
+    const status = parsed.status === 'ended' ? 'ended' : 'diving';
+    return { day, variant, depth, guessesLeft, solved, deepestCleared, status };
   } catch {
     return null;
   }
 }
 
-export function clearGame(mode: ModeId, gridNumber: number, variant: number): void {
-  storage()?.removeItem(storageKey(mode, gridNumber, variant));
+export function clearDive(day: number, variant: number): void {
+  storage()?.removeItem(storageKey(day, variant));
 }

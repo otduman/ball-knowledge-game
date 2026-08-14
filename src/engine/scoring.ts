@@ -1,4 +1,5 @@
 import type { Athlete } from '../data/types';
+import { LEVELS, MAX_DEPTH, levelAt } from './levels';
 
 /**
  * Rarity score for naming an athlete: the share of players who would *not* have
@@ -8,57 +9,39 @@ export function rarityScore(athlete: Athlete): number {
   return Math.max(1, Math.min(99, 100 - athlete.pop));
 }
 
-export function maxScoreFor(totalCells: number): number {
-  return totalCells * 99;
-}
-
 export interface Verdict {
   title: string;
   blurb: string;
 }
 
 /**
- * Verdict text keyed off both completion and rarity, so filling the board with
- * household names reads differently from the same board of genuine deep cuts.
- * Thresholds are proportional rather than absolute, because a mode with six
- * cells should not be permanently stuck below the nine-cell praise.
+ * The headline number is depth, not points. "How far down did you get" is the
+ * question the game asks, and rarity is the tiebreaker between two players who
+ * got equally deep.
  */
-export function verdictFor(solvedCount: number, score: number, totalCells: number): Verdict {
-  if (solvedCount === 0) {
+export function verdictFor(deepestCleared: number, averageRarity: number): Verdict {
+  if (deepestCleared >= MAX_DEPTH) {
     return {
-      title: 'Blanked',
-      blurb: `${totalCells} empty cells. The reveal below shows names that would have worked.`,
+      title: averageRarity >= 90 ? 'Bedrock, on deep cuts' : 'You hit bedrock',
+      blurb:
+        averageRarity >= 90
+          ? 'The whole dive, and barely a household name in it. There is nothing left to teach you.'
+          : 'All the way down. Try it again and see how obscure you can go.',
+    };
+  }
+  if (deepestCleared === 0) {
+    return {
+      title: 'The ice held',
+      blurb: 'You never made it through the surface. The reveal below shows names that would have worked.',
     };
   }
 
-  const averageRarity = score / solvedCount;
-
-  if (solvedCount >= totalCells && averageRarity >= 90) {
-    return {
-      title: 'Ball knowledge, certified',
-      blurb: 'A perfect board of deep cuts. There is nothing left to teach you.',
-    };
-  }
-  if (solvedCount >= totalCells) {
-    return {
-      title: 'Perfect board',
-      blurb: `${solvedCount} from ${totalCells}. Try it again and see how obscure you can go.`,
-    };
-  }
-  if (averageRarity >= 90) {
-    return {
-      title: 'Deep cuts only',
-      blurb: 'You left cells empty but nobody else is naming the players you named.',
-    };
-  }
-  if (solvedCount / totalCells >= 2 / 3) {
-    return {
-      title: 'Solid shift',
-      blurb: 'A respectable board. The rarer the name, the higher the score.',
-    };
-  }
+  const level = levelAt(deepestCleared);
+  const next = LEVELS[deepestCleared];
   return {
-    title: 'Room to grow',
-    blurb: 'Score is 100 minus the share of players expected to name the same athlete.',
+    title: `Stopped at ${level.name}`,
+    blurb: next
+      ? `Level ${deepestCleared} of ${MAX_DEPTH} cleared. ${next.name} was where it got you.`
+      : `Level ${deepestCleared} of ${MAX_DEPTH} cleared.`,
   };
 }

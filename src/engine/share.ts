@@ -1,28 +1,34 @@
-import type { GameState } from './game';
-import { solvedCount, totalScore } from './game';
-import type { Grid } from './grid';
-import { cellCount } from './grid';
-import { cellKey } from './pools';
+import type { DiveState } from './dive';
+import { diveCellKey, totalScore, totalSolved } from './dive';
+import { buildBoard } from './grid';
+import { LEVELS, MAX_DEPTH } from './levels';
 
-const HIT = '\u{1F7E9}';
-const MISS = '⬛';
+const HIT = '\u{1F7E6}';
+const MISS = '⬜';
+const ICE = '\u{1F9CA}';
 
 /**
- * Result text for sharing. Deliberately shows the shape of the board but not
- * the names, so posting it cannot spoil the day's grid.
+ * Result text for sharing. Shows how deep the dive went and the shape of each
+ * level, but never a name, so posting it cannot spoil the day's dive.
  */
-export function buildShareText(grid: Grid, state: GameState): string {
-  const solved = solvedCount(state);
+export function buildShareText(state: DiveState): string {
+  const solved = totalSolved(state);
   const score = totalScore(state);
 
-  const lines = [`Ball Knowledge ${grid.label} — ${solved}/${cellCount(grid)} · ${score} pts`];
-  for (const row of grid.rows) {
-    lines.push(grid.cols.map((col) => (state.solved[cellKey(row.id, col.id)] ? HIT : MISS)).join(''));
+  const lines = [
+    `Ball Knowledge Dive No. ${String(state.day).padStart(3, '0')} — ${ICE} ${state.deepestCleared}/${MAX_DEPTH} levels · ${score} pts`,
+  ];
+
+  for (const level of LEVELS) {
+    if (level.depth > state.depth) break;
+    const board = buildBoard(state.day, level.depth, state.variant);
+    const marks = board.rows
+      .map((row) => board.cols.map((col) => (state.solved[diveCellKey(level.depth, row.id, col.id)] ? HIT : MISS)).join(''))
+      .join(' ');
+    lines.push(`${level.depth} ${marks}`);
   }
 
-  if (solved > 0) {
-    lines.push(`Avg rarity ${Math.round(score / solved)}/99`);
-  }
+  if (solved > 0) lines.push(`Avg rarity ${Math.round(score / solved)}/99`);
   return lines.join('\n');
 }
 

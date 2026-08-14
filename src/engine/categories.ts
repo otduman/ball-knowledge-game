@@ -52,7 +52,8 @@ function condense(items: string[], keep: number): string {
 }
 
 /** A row must clear this in at least `MIN_VIABLE_COLUMNS` sports to be usable. */
-const MIN_POOL = 6;
+export const MIN_ROW_POOL = 6;
+const MIN_POOL = MIN_ROW_POOL;
 const MIN_VIABLE_COLUMNS = 3;
 
 function surnameInitial(name: string): string {
@@ -155,6 +156,37 @@ export const ERA_CATEGORIES: readonly Category[] = ERA_BANDS.map((band) => ({
     athlete.birthYear !== undefined && athlete.birthYear >= band.min && athlete.birthYear < band.max,
 }));
 
+// ---- exact birth year ----------------------------------------------------
+
+/**
+ * The single most valuable row family for the deep end of the dive, and it
+ * needed no new data at all.
+ *
+ * Depth needs rows that are narrow in *both* columns, and almost nothing is:
+ * regions, decades, origin stories and name shapes are all broad in football,
+ * so below the ~30-answer line the board collapsed onto surname letters and
+ * small countries — 84% of deep row slots between them. An exact year is narrow
+ * by construction: 22 of them field six or more in both sports and 21 of those
+ * sit entirely under 30 answers.
+ *
+ * They share the `era` group with the decade bands deliberately. A board
+ * showing "Born 1980s" beside "Born in 1985" would be asking one question
+ * twice, and the group cap is what stops it.
+ */
+const BIRTH_YEAR_CANDIDATES: readonly Category[] = [
+  ...new Set(ATHLETES.map((a) => a.birthYear).filter((y): y is number => y !== undefined)),
+]
+  .sort((a, b) => a - b)
+  .map((year) => ({
+    id: `era:year-${year}`,
+    label: `Born in ${year}`,
+    axis: 'row' as const,
+    group: 'era' as const,
+    hint: `Born during the calendar year ${year}`,
+    explain: false,
+    matches: (athlete: Athlete) => athlete.birthYear === year,
+  }));
+
 // ---- surname initial -----------------------------------------------------
 
 /**
@@ -175,6 +207,24 @@ const LETTER_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvwxyz']
 
 export const LETTER_CATEGORIES: readonly Category[] = LETTER_CANDIDATES.filter((c) =>
   isViableRow(c.matches),
+);
+
+/**
+ * Given names, in the same group as surnames rather than a group of their own.
+ * They add rows a two-column board badly needs — eight of them are narrow
+ * enough for the deep levels — but "Surname T" and "Given name V" on one board
+ * is the same question twice, and sharing a group is what prevents it.
+ */
+const GIVEN_NAME_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvwxyz'].map(
+  (letter) => ({
+    id: `letter:given-${letter}`,
+    label: `Given name ${letter.toUpperCase()}`,
+    axis: 'row' as const,
+    group: 'letter' as const,
+    hint: `First name starts with ${letter.toUpperCase()}`,
+    explain: false,
+    matches: (athlete: Athlete) => (tokens(athlete.name)[0] ?? '').charAt(0) === letter,
+  }),
 );
 
 // ---- Wikipedia reach -----------------------------------------------------
@@ -404,10 +454,12 @@ const ROW_CANDIDATES: readonly Category[] = [
   ...REGION_CATEGORIES,
   ...COUNTRY_CANDIDATES,
   ...ERA_CATEGORIES,
+  ...BIRTH_YEAR_CANDIDATES,
   ...REACH_CATEGORIES,
   ...ORIGIN_CANDIDATES,
   ...NAME_CANDIDATES,
   ...LETTER_CANDIDATES,
+  ...GIVEN_NAME_CANDIDATES,
 ];
 
 const VIABLE_SPORTS: ReadonlyMap<string, ReadonlySet<SportId>> = new Map(

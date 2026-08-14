@@ -7,14 +7,13 @@ import {
   COL_CATEGORIES,
   COUNTRY_CATEGORIES,
   ERA_CATEGORIES,
-  GEOGRAPHIC_GROUPS,
   LETTER_CATEGORIES,
   NAME_CATEGORIES,
   ORIGIN_CATEGORIES,
   REACH_CATEGORIES,
   ROW_CATEGORIES,
 } from '../src/engine/categories';
-import { DEFAULT_CONSTRAINTS, buildGrid } from '../src/engine/grid';
+import { MIN_ROW_POOL } from '../src/engine/categories';
 import { poolFor } from '../src/engine/pools';
 
 const entries = raw.entries as unknown as Record<string, unknown>;
@@ -144,7 +143,7 @@ describe('attribute categories', () => {
   it('leaves no dead row category that can never fill three columns', () => {
     const dead = ROW_CATEGORIES.filter((row) => {
       const usable = COL_CATEGORIES.filter(
-        (col) => poolFor(row, col).length >= DEFAULT_CONSTRAINTS.minPool,
+        (col) => poolFor(row, col).length >= MIN_ROW_POOL,
       ).length;
       return usable < 3;
     });
@@ -192,7 +191,7 @@ describe('Wikipedia reach', () => {
   it('adds no near-free cells — both bands stay under the wide threshold', () => {
     for (const row of REACH_CATEGORIES) {
       for (const col of COL_CATEGORIES) {
-        expect(poolFor(row, col).length).toBeLessThan(DEFAULT_CONSTRAINTS.widePool);
+        expect(poolFor(row, col).length).toBeLessThan(260);
       }
     }
   });
@@ -202,7 +201,7 @@ describe('origin and name rows', () => {
   it('only keeps rows that can fill three columns', () => {
     for (const row of [...ORIGIN_CATEGORIES, ...NAME_CATEGORIES]) {
       const usable = COL_CATEGORIES.filter(
-        (col) => poolFor(row, col).length >= DEFAULT_CONSTRAINTS.minPool,
+        (col) => poolFor(row, col).length >= MIN_ROW_POOL,
       ).length;
       expect(usable, `${row.label}`).toBeGreaterThanOrEqual(3);
     }
@@ -248,30 +247,6 @@ describe('origin and name rows', () => {
   });
 });
 
-describe('board variety', () => {
-  it('gives every row group meaningful airtime, not airtime proportional to its size', () => {
-    const slots = new Map<string, number>();
-    const boards = 200;
-    for (let n = 1; n <= boards; n++) {
-      for (const row of buildGrid(n).rows) slots.set(row.group, (slots.get(row.group) ?? 0) + 1);
-    }
-    const total = boards * 3;
-    // Reach has 2 rows against 20 letters. Under uniform sampling it landed on
-    // 3% of slots; stratifying by board shape is what keeps it visible.
-    for (const group of ['region', 'country', 'era', 'reach', 'letter']) {
-      const share = (slots.get(group) ?? 0) / total;
-      expect(share, `${group} share`).toBeGreaterThan(0.05);
-    }
-  });
-
-  it('never puts two reach rows on one board', () => {
-    for (let n = 1; n <= 300; n++) {
-      const reach = buildGrid(n).rows.filter((r) => r.group === 'reach').length;
-      expect(reach).toBeLessThanOrEqual(1);
-    }
-  });
-});
-
 describe('category hints', () => {
   it('gives every category a non-empty explanation', () => {
     const missing = [...ROW_CATEGORIES, ...COL_CATEGORIES].filter((c) => !c.hint.trim());
@@ -296,47 +271,3 @@ describe('category hints', () => {
   });
 });
 
-describe('mixed-row grids', () => {
-  it('keeps at least one geographic row on every board', () => {
-    for (let n = 1; n <= 300; n++) {
-      const grid = buildGrid(n);
-      const geographic = grid.rows.filter((r) => GEOGRAPHIC_GROUPS.includes(r.group)).length;
-      expect(geographic).toBeGreaterThanOrEqual(DEFAULT_CONSTRAINTS.minGeographicRows);
-    }
-  });
-
-  it('honours the difficulty budget on every board', () => {
-    for (let n = 1; n <= 300; n++) {
-      const grid = buildGrid(n);
-      const wide = grid.rows.flatMap((r) =>
-        grid.cols.map((c) => poolFor(r, c).length),
-      ).filter((size) => size >= DEFAULT_CONSTRAINTS.widePool).length;
-      expect(wide).toBeLessThanOrEqual(DEFAULT_CONSTRAINTS.maxWideCells);
-    }
-  });
-
-  it('never stacks three rows from the same group', () => {
-    for (let n = 1; n <= 300; n++) {
-      const grid = buildGrid(n);
-      const counts = new Map<string, number>();
-      for (const row of grid.rows) counts.set(row.group, (counts.get(row.group) ?? 0) + 1);
-      for (const count of counts.values()) {
-        expect(count).toBeLessThanOrEqual(DEFAULT_CONSTRAINTS.maxRowsPerGroup);
-      }
-    }
-  });
-
-  it('actually mixes attribute rows in, rather than defaulting to regions', () => {
-    let withAttribute = 0;
-    for (let n = 1; n <= 100; n++) {
-      if (buildGrid(n).rows.some((r) => r.group !== 'region')) withAttribute++;
-    }
-    expect(withAttribute).toBeGreaterThan(20);
-  });
-
-  it('uses every sport across a run of daily grids', () => {
-    const seen = new Set<string>();
-    for (let n = 1; n <= 100; n++) for (const col of buildGrid(n).cols) seen.add(col.id);
-    expect(seen.size).toBe(COL_CATEGORIES.length);
-  });
-});

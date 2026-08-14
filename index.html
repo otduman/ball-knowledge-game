@@ -3,34 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A daily sports grid. One guess per cell: name an athlete who fits both the row and the column.">
+<meta name="description" content="A daily football and basketball dive. Clear a level, break the ice, drop to a harder one.">
 <meta name="theme-color" content="#F2CDBF">
-<title>Ball Knowledge — daily sports grid</title>
+<title>Ball Knowledge — the daily dive</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body data-depth="1">
 
 <a class="skip" href="#board">Skip to the board</a>
 
 <header class="masthead">
   <h1><span>Ball</span><span>Knowledge</span></h1>
   <div class="dek">
-    <span id="issue">Grid No. 001</span>
-    <span id="dek-mode">Football · NBA · UFC · F1 · Tennis</span>
+    <span id="issue">Dive No. 001</span>
+    <span>Football × NBA</span>
   </div>
 </header>
 
-<div class="modes" id="modes" role="group" aria-label="Game mode"></div>
+<div class="gauge" id="gauge" role="group" aria-label="Dive depth"></div>
 
 <div class="strap">
-  <span id="strap-rules">Nine cells. Nine guesses.</span>
+  <span id="strap-rules">Fill the board to break through.</span>
   <span>Tap a heading for <b>what counts</b></span>
 </div>
 
 <main>
-  <div class="board" id="board"></div>
+  <div class="stage" id="stage">
+    <div class="board" id="board"></div>
+    <div class="cracks" id="cracks" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+  </div>
+
+  <p class="level-note" id="level-note"></p>
 
   <section class="result" id="result" aria-live="polite">
     <h2 id="verdict"></h2>
@@ -42,9 +49,9 @@
 </main>
 
 <div class="bar">
-  <span class="pill">Guesses left<b id="left">9</b></span>
+  <span class="pill">Guesses left<b id="left">7</b></span>
   <span class="pill">Rarity score<b id="score">0</b></span>
-  <button class="act" id="next" type="button">New grid</button>
+  <button class="act" id="next" type="button">New dive</button>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>

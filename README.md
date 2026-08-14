@@ -1,37 +1,25 @@
 # Ball Knowledge
 
-A daily sports trivia grid. One guess per cell: name an athlete who fits both
-the row and the column. Rarer names score more, so filling the board is only
-half the game.
+A daily **dive** through football and basketball. Two columns, five levels: name
+an athlete who fits both the row and the column, fill the board, and the ice
+breaks under you. Each level down is colder, tighter and stranger than the last.
 
 ```
-   DAILY 3x3                            DUEL 2x3
-                 FOOTBALL  TENNIS  F1                 FOOTBALL   NBA
-NORTH AMERICA       +         +     +    BORN PRE-1970    +       +
-SPAIN               +         +     +    TURKIYE          +       +
-SURNAME F           +         +     +    DEEP CUT         +       +
+        FOOTBALL   NBA          gauge:  [1]  [2]  [3]  [4]  [5]
+SPAIN      +        +                   surface -> bedrock
+SURNAME E  +        +
+BORN 1994  +        +          fill the board -> the ice cracks -> you drop
 ```
 
-Rows mix regions, countries, birth decades, Wikipedia reach, origin stories
-(dual nationals, capital-born, shared birth cities), name shapes and surname
-initials; columns are sports, and which three appear changes day to day.
-
-**Two modes.** The daily 3×3 draws from all five sports. The **duel** is a
-two-column Football × NBA board with three rows, six cells and no easy squares —
-see [Why the duel is harder, not just smaller](#why-the-duel-is-harder-not-just-smaller).
-
-**Ambiguous headings explain themselves.** "Southern Europe" quietly includes
-Spain and Portugal, and a player has no way to know that before spending a
-guess — so those headings carry their member countries inline under the label,
-open a panel when tapped, and restate the rule in the picker at the moment of
-guessing. Self-evident headings ("Spain", "Surname F") get none of that.
+How deep you get is the score; rarity is the tiebreaker. One guess per cell plus
+a single spare, and the run ends where you stop breaking through.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 102 tests
+npm test           # 67 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
@@ -81,127 +69,69 @@ cell. Rarity score is `100 - pop`, so an obvious pick is worth ~45 and a deep cu
 Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 300 tennis, across 98 countries.
 
-### Rows: 57 of them, in seven groups
+### Rows
 
-| group | count | examples |
-|---|---|---|
-| Region | 9 | Africa, Nordic, Asia & Oceania |
-| Country | 14 | Spain, Brazil, Serbia, Australia |
-| Born decade | 5 | Born 1980s, Born 2000s |
-| Surname initial | 20 | Surname K, Surname M, Surname S |
-| Wikipedia reach | 2 | Global name, Deep cut |
-| Origin | 3 | Dual national, Born in a capital, Shares a birth city |
-| Name shape | 4 | Known by one name, Shared surname, Double letter |
+| group | examples |
+|---|---|
+| Region | Africa, Eastern Europe, Asia & Oceania |
+| Country | Spain, Serbia, Croatia, Nigeria, Canada |
+| Born decade | Born pre-1970, Born 2000s |
+| **Born in an exact year** | Born in 1986, Born in 1994, Born in 2003 |
+| Surname / given-name initial | Surname E, Given name S |
+| Wikipedia reach | Global name, Deep cut |
+| Origin | Dual national, Born in a capital, Shares a birth city |
+| Name shape | Known by one name, Shared surname, Double letter |
 
-`country → region` resolves through one table in [regions.ts](src/data/regions.ts),
-so classification is auditable in one place. Country and letter rows are
+`country -> region` resolves through one table in [regions.ts](src/data/regions.ts),
+so classification is auditable in one place. Country, letter and year rows are
 **generated, not hand-listed**: the set grows with the roster and can never
-contain a heading no grid can use.
+contain a heading no board can use.
 
-Viability is asked per mode, not once. A mode with fixed columns names them and
-gets the rows that work in exactly those; a mode whose columns vary asks for rows
-that work in at least as many sports as it has columns. That is why the duel can
-use Greece, Nigeria, Türkiye and Surname I — rows with plenty of footballers and
-NBA players and almost nothing anywhere else, which the daily board's
-three-column rule correctly discards.
+**Exact birth years are what made the deep end work.** Depth needs rows that are
+narrow in *both* columns, and almost nothing is — regions, decades, origin
+stories and name shapes are all broad in football, so below the ~30-answer line
+the board collapsed onto surname letters and small countries, 84% of deep row
+slots between them. An exact year is narrow by construction: 22 of them field
+six or more in both sports and 21 of those sit entirely under 30 answers. It
+needed no new data at all. Years share the `era` group with the decade bands so
+that "Born 1980s" can never appear beside "Born in 1985".
 
-Three rules keep rows honest:
+Things measured and rejected: **birth cities as rows** (not one city has six
+players in both football and the NBA), **surname length** (only one band is
+narrow enough), **cross-sport clubs**, **jersey numbers**, **US college**,
+**handedness**, **height**. Reasons are in the git history and the probe scripts.
 
-- Bands are **mutually exclusive**, so two can share a board without overlapping.
-- An athlete with no birth year matches **no** decade row. Missing data costs
-  pool depth; it never puts someone in the wrong row.
-- Every board keeps at least one geographic row (region or country), because a
-  grid of only letters and decades loses the hook the game is built on.
+### Levels are windows, not difficulty flags
 
-**Height rows were removed.** They asked players to guess something they don't
-know, and they produced the two worst free squares on the board (409 and 276
-valid answers). Height is still collected — it is simply not a row.
+[levels.ts](src/engine/levels.ts) defines each depth as a pool window plus a
+shape. What makes a level hard is the **ceiling** on cell size, not the floor:
 
-Single letters rather than A–C buckets: buckets are three times wider for no
-extra interest ("A–C × Football" offered 115 answers, "M × Football" offers 56)
-and single letters give 20 rows instead of 7.
+| level | rows | cells | window | boards | median cell |
+|---|---|---|---|---|---|
+| 1 Surface | 3 | 6 | 18-300 | 2297 | 56 |
+| 2 First crack | 3 | 6 | 14-95 | 1520 | 31 |
+| 3 Cold water | 3 | 6 | 11-48 | 4231 | 18 |
+| 4 The trench | 4 | 8 | 8-30 | 52749 | 14 |
+| 5 Bedrock | 4 | 8 | 6-20 | 16346 | 10 |
 
-**Wikipedia reach** counts how many language Wikipedias carry an article about
-an athlete — a free, stable proxy for global fame, and the workable form of
-"1M+ Instagram followers" (Wikidata records no follower counts, and a follower
-threshold would rot as the number moved). It ranks exactly as a fame measure
-should: Messi 223, Ronaldo 211, Pelé 181, Schumacher 171, Federer 159.
+A ceiling rather than a floor because two columns of football and basketball —
+the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
+harder. Fewer columns is fewer places to hide, not a harder question.
 
-Only the two extremes are rows. The middle of the distribution is both enormous
-(a 342-answer cell) and unguessable — nobody can tell 30 languages from 50 —
-whereas "globally famous" and "obscure" are judgements a fan can actually make.
-Athletes in the gap match neither row, exactly as an athlete with no birth year
-matches no decade. Both bands stay under the wide-cell threshold, so reach adds
-no free squares at all.
+Two failures the level probe exists to catch, both of which happened:
 
-### Grids are chosen, not sampled
+- **A row pinned to every board.** Below ~12 answers a cell, only three groups
+  still have rows at all, so demanding four *distinct* kinds forced the sole
+  survivor of a thin group onto 100% of boards. `minDistinctGroups` relaxes with
+  depth for exactly this reason.
+- **A level too thin to replay.** Every depth now runs at least 500 days before
+  a board recurs; the surface runs 1323.
 
-[grid.ts](src/engine/grid.ts) enumerates all 3×3 combinations, keeps the ones
-where every intersection has at least 6 answers and at least 3 cells are
-comfortable, then walks that catalogue in a seeded permutation:
-
-- Every board is solvable. There is no "UK & Ireland × NBA" cell, because the
-  roster has only four such players and the feasibility check rejects it.
-- **60,173** boards are feasible, and none repeats over any realistic run.
-
-There is also a **difficulty budget**. A cell offering 150+ valid answers is
-near-free — almost any well-known name in that sport works — so at most one is
-allowed per board. It is a budget rather than a ban because the friendlier rows
-(a common surname letter, a big country) are legitimately broad. The median cell
-went from 41 valid answers to 16.
-
-Two things shape *which* board you get, and both exist because uniform sampling
-produced boards that felt alike:
-
-- **Stratified by shape.** Boards are served round-robin across the multiset of
-  row kinds they use ("country+letter+region"), not uniformly across the
-  catalogue. Uniform sampling makes a group's airtime proportional to how many
-  rows it contains, so 20 letters took 40% of row slots while 2 reach bands took
-  3%. Stratifying gives each *kind* of board equal exposure — across seven groups
-  the spread is now regions 24%, countries 24%, decades 12%, name shapes 12%,
-  origin 11%, letters 9%, reach 8%, and boards carrying a letter row fell from
-  85% to 27%.
-- **Football is weighted.** It is the sport most players know and has the
-  deepest roster, so the catalogue is split on whether a board features it and
-  each side walks its own permutation. Football headlines 86% of boards rather
-  than its uniform 60%, while one board in seven still omits it.
-
-Puzzle numbers count UTC days from `EPOCH_UTC`, so everyone gets the same board
-on the same day, and progress survives a reload via `localStorage`. Each mode
-saves under its own key and resumes independently.
-
-**Daily boards take the front of the index space, one per puzzle number.** The
-obvious `(number - 1) * 8 + variant` is dense over all boards but makes the daily
-track a stride-8 subsequence, and the round-robin over board shapes reads
-`index % shapeCount`. Whenever that stride shares a factor with the shape count
-the round-robin collapses: the duel has 16 shapes, its daily track visited two of
-them, and a board recurred every 62 days.
-
-### Why the duel is harder, not just smaller
-
-Football and the NBA are the two deepest rosters in the game, so a two-column
-board built on the daily settings is *easier* than the daily board, not harder.
-Difficulty is bought explicitly:
-
-- **No near-free square at all.** The daily board budgets one cell of 150+
-  answers; the duel bans anything over 70. Median cell: **20 against the daily
-  25**, worst cell 68 against 245.
-- **Three different kinds of row, always.** A duel board can never be three
-  variations on where someone is from.
-
-That budget excludes two whole row families, by measurement rather than by
-taste. Every origin row is too broad across these two sports — "Shares a birth
-city" alone offers 243 footballers, "Born in a capital" 105 — and so are era's
-three middle bands, of which "Born 1990s" offers 245. What survives is 56 rows in
-six groups and **2231 boards**, with airtime spread country 21%, letters 21%,
-decades 17%, regions 16%, reach 13%, name shapes 13%.
-
-One consequence is worth knowing: the duel catalogue has shapes holding two
-boards against shapes holding six hundred, and equal airtime is only free while
-every shape can sustain it — handing a two-board shape a full 1-in-20 slot
-recycled it every 40 boards. Shapes thinner than 25 boards are pooled instead.
-Nothing in the daily catalogue is that thin (its smallest holds 76), so the rule
-is inert there. The duel now runs **423 days** before a board recurs.
+Selection walks a seeded permutation of each depth's catalogue, stratified by
+the multiset of row kinds so a group's airtime is not proportional to how many
+rows it happens to contain. Enumeration filters rows to the level window
+*before* walking combinations — the difference between C(148, 4) and C(39, 4),
+and a 20x speedup, with identical output.
 
 ## Enrichment pipeline
 

@@ -639,5 +639,104 @@ Bhaichung Bhutia|India|1
 Hao Haidong|China|1
 Zheng Zhi|China|1
 Craig Goodwin|Australia|1
+# ---- England, Scotland, Wales and Ireland - Premier League era depth, not just superstars ----
+Ally McCoist|Scotland|3|Alistair McCoist; Super Ally
+Andy Cole|England|4|Andrew Cole
+Ashley Williams|Wales|2
+Barry Ferguson|Scotland|2
+Ben Davies|Wales|3
+Billy Bremner|Scotland|2|William Bremner
+Billy Gilmour|Scotland|3|William Gilmour
+Brennan Johnson|Wales|3
+Bryan Robson|England|4|Captain Marvel
+Chris Waddle|England|2|Christopher Waddle
+Craig Bellamy|Wales|3
+Darren Fletcher|Scotland|3
+Denis Irwin|Ireland|3
+Denis Law|Scotland|4|The King
+Emile Heskey|England|4
+Gareth Barry|England|3
+Gary McAllister|Scotland|2
+Gary Neville|England|5
+Gary Speed|Wales|3
+Graeme Souness|Scotland|3|Graham Souness
+Ian Wright|England|5
+James McClean|Ireland|2
+Jamie Carragher|England|5|Carra
+Jarrod Bowen|England|4
+Jermain Defoe|England|4|Jermaine Defoe
+John Barnes|England|4
+John Charles|Wales|2|Il Gigante Buono
+John O'Shea|Ireland|3|John OShea
+Kieran Trippier|England|4
+Ledley King|England|2
+Liam Brady|Ireland|3|Chippy Brady
+Mark Hughes|Wales|3|Sparky
+Mary Earps|England|4
+Matt Le Tissier|England|4|Matthew Le Tissier; Le God
+Michael Carrick|England|4
+Nathan Collins|Ireland|2
+Neville Southall|Wales|3|Big Nev
+Niall Quinn|Ireland|3
+Packie Bonner|Ireland|2|Patrick Bonner
+Paul McGrath|Ireland|3
+Peter Crouch|England|5
+Richard Dunne|Ireland|3
+Scott Brown|Scotland|2|Broony
+Sol Campbell|England|3|Sulzeer Campbell
+Steve McManaman|England|3|Macca
+Teddy Sheringham|England|5|Edward Sheringham
+Tony Adams|England|4|Anthony Adams
+
+# ---- Brazil, Argentina, Uruguay, Colombia, Chile and the rest of South America ----
+Adriano|Brazil|6|Adriano Imperador; Adriano Leite Ribeiro
+Alberto Spencer|Ecuador|2|Alberto Pedro Spencer
+Alejandro Garnacho|Argentina|6|Garnacho
+Alvaro Recoba|Uruguay|3|Álvaro Recoba; El Chino Recoba
+Andres Escobar|Colombia|3|Andrés Escobar
+Bebeto|Brazil|6|Jose Roberto Gama de Oliveira
+Ben Brereton Diaz|Chile|3|Ben Brereton; Ben Brereton Díaz
+Carlos Alberto Torres|Brazil|4|Carlos Alberto
+Carlos Gamarra|Paraguay|2
+Charles Aranguiz|Chile|3|Charles Aránguiz
+Claudio Caniggia|Argentina|3|El Hijo del Viento
+Claudio Pizarro|Peru|4
+Daniel Passarella|Argentina|3|El Gran Capitan
+Diego Simeone|Argentina|8|El Cholo; Cholo Simeone
+Dunga|Brazil|5|Carlos Dunga
+Elias Figueroa|Chile|2|Elías Figueroa
+Enzo Francescoli|Uruguay|4|El Principe; El Príncipe
+Faustino Asprilla|Colombia|4|Tino Asprilla
+Fernando Redondo|Argentina|3|Fernando Carlos Redondo
+Freddy Rincon|Colombia|2|Freddy Rincón; Freddie Rincon
+Garrincha|Brazil|12|Mane Garrincha; Mané Garrincha; Manuel Francisco dos Santos
+Gianluca Lapadula|Peru|2
+Ivan Cordoba|Colombia|2|Iván Córdoba
+Jairzinho|Brazil|5|Jair Ventura Filho
+Javier Zanetti|Argentina|5|Pupi Zanetti
+Jorge Valdivia|Chile|2|El Mago Valdivia
+Jose Maria Gimenez|Uruguay|4|José María Giménez; Josema Gimenez
+Juan Alberto Schiaffino|Uruguay|2|Schiaffino; Pepe Schiaffino
+Juan Arango|Venezuela|2|Juan Fernando Arango
+Juan Cuadrado|Colombia|5|Juan Guillermo Cuadrado
+Juan Sebastian Veron|Argentina|4|Juan Sebastián Verón; La Brujita; Seba Veron
+Julio Cesar Romero|Paraguay|1|Romerito; Julio César Romero
+Lucio|Brazil|4|Lúcio; Lucimar Ferreira da Silva
+Manuel Ugarte|Uruguay|3
+Marcelo Martins Moreno|Bolivia|1|Marcelo Moreno; Marcelo Moreno Martins
+Marco Etcheverry|Bolivia|2|El Diablo Etcheverry
+Mario Kempes|Argentina|5|Mario Alberto Kempes; El Matador
+Miguel Almiron|Paraguay|5|Miguel Almirón
+Nolberto Solano|Peru|3|Nobby Solano
+Oscar Cardozo|Paraguay|2|Óscar Cardozo
+Pervis Estupinan|Ecuador|3|Pervis Estupiñán
+Philippe Coutinho|Brazil|8|Coutinho
+Piero Hincapie|Ecuador|4|Piero Hincapié
+Roberto Firmino|Brazil|8|Firmino; Bobby Firmino
+Sheraldo Becker|Suriname|2
+Taffarel|Brazil|4|Claudio Taffarel; Cláudio Taffarel
+Teofilo Cubillas|Peru|3|Teófilo Cubillas; Nene Cubillas
+Tomas Rincon|Venezuela|2|Tomás Rincón; El General
+
 `,
 );

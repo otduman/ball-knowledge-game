@@ -1,9 +1,9 @@
 import { athleteById } from '../data/rosters';
 import type { Athlete } from '../data/types';
 import type { Category } from '../engine/categories';
-import type { GameState } from '../engine/game';
-import type { Grid } from '../engine/grid';
-import { cellKey, poolDepth, poolFor } from '../engine/pools';
+import { diveCellKey } from '../engine/dive';
+import type { Board } from '../engine/grid';
+import { poolDepth, poolFor } from '../engine/pools';
 import { rarityScore } from '../engine/scoring';
 import { clear, el } from './dom';
 
@@ -116,27 +116,28 @@ function headingNode(
 
 export function renderBoard(
   container: HTMLElement,
-  grid: Grid,
-  state: GameState,
+  board: Board,
+  solved: Record<string, string>,
+  revealed: boolean,
   handlers: BoardHandlers,
 ): void {
   clear(container);
-  container.style.gridTemplateColumns = `1.32fr repeat(${grid.cols.length}, 1fr)`;
+  container.style.gridTemplateColumns = `1.32fr repeat(${board.cols.length}, 1fr)`;
 
   const corner = el('div', { className: 'corner' });
   corner.append('Name one', el('br'), 'athlete per', el('br'), 'cell');
   container.append(corner);
 
-  for (const col of grid.cols) {
+  for (const col of board.cols) {
     container.append(headingNode(col, 'head', 'txt', handlers));
   }
 
-  for (const row of grid.rows) {
+  for (const row of board.rows) {
     container.append(headingNode(row, 'rowhead', 'lbl', handlers));
 
-    for (const col of grid.cols) {
-      const key = cellKey(row.id, col.id);
-      const solvedId = state.solved[key];
+    for (const col of board.cols) {
+      const key = diveCellKey(board.depth, row.id, col.id);
+      const solvedId = solved[key];
       const pool = poolFor(row, col);
 
       if (solvedId) {
@@ -147,7 +148,7 @@ export function renderBoard(
         }
       }
 
-      if (state.status === 'finished') {
+      if (revealed) {
         // Reveal from just inside the pool rather than the very top name.
         const example = pool[Math.min(Math.floor(pool.length / 3), Math.max(0, pool.length - 1))];
         container.append(deadCellNode(example, row.label, col.label));

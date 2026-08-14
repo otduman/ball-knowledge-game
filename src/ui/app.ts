@@ -1,127 +1,91 @@
-import type { Grid } from '../engine/grid';
-import { buildGrid, cellCount } from '../engine/grid';
-import type { GameState } from '../engine/game';
+import { categoryById } from '../engine/categories';
+import type { DiveState } from '../engine/dive';
 import {
   applyGuess,
-  createGame,
-  solvedCount,
+  boardFor,
+  createDive,
+  descend,
   totalScore,
   usedAthleteIds,
-} from '../engine/game';
-import type { ModeId } from '../engine/modes';
-import { DEFAULT_MODE, MODES, MODE_IDS, modeById } from '../engine/modes';
+} from '../engine/dive';
+import type { Board } from '../engine/grid';
+import { LEVELS, MAX_DEPTH, levelAt } from '../engine/levels';
 import { puzzleNumberFor } from '../engine/rng';
-import { loadGame, saveGame } from '../engine/storage';
-import { categoryById } from '../engine/categories';
+import { loadDive, saveDive } from '../engine/storage';
 import { renderBoard } from './board';
 import { byId, clear, el, toast } from './dom';
 import { InfoSheet } from './info';
 import { Picker } from './picker';
 import { renderResult } from './results';
 
-const MODE_KEY = 'bk:mode';
-
-const COUNT_WORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
-
-function sentenceCount(n: number): string {
-  return COUNT_WORD[n] ?? String(n);
-}
+/** Crack, shudder, plunge, then the next level rises. Matches the CSS timings. */
+const BREAK_MS = 900;
 
 export class App {
+  private readonly stageEl = byId<HTMLDivElement>('stage');
   private readonly boardEl = byId<HTMLDivElement>('board');
   private readonly picker = new Picker();
   private readonly info = new InfoSheet();
-  private modeId: ModeId;
-  private grid: Grid;
-  private state: GameState;
+  private state: DiveState;
+  private board: Board;
+  private breaking = false;
 
-  constructor(private readonly puzzleNumber: number) {
-    this.modeId = App.rememberedMode();
-    this.grid = buildGrid(puzzleNumber, 0, this.modeId);
-    this.state = loadGame(this.grid) ?? createGame(this.grid);
+  constructor(private readonly day: number) {
+    this.state = loadDive(day, 0) ?? createDive(day, 0);
+    this.board = boardFor(this.state);
 
-    byId<HTMLButtonElement>('next').addEventListener('click', () => this.nextGrid());
-    this.renderModes();
+    byId<HTMLButtonElement>('next').addEventListener('click', () => this.newDive());
     this.render();
   }
 
-  /** The last mode played, so a reload lands where the player left off. */
-  private static rememberedMode(): ModeId {
-    try {
-      const stored = window.localStorage.getItem(MODE_KEY);
-      if (stored && modeById(stored)) return stored as ModeId;
-    } catch {
-      // Private-mode storage throws; the default mode is a fine answer.
-    }
-    return DEFAULT_MODE;
-  }
-
-  private renderModes(): void {
-    const host = byId<HTMLDivElement>('modes');
-    clear(host);
-
-    for (const id of MODE_IDS) {
-      const mode = MODES[id];
-      const active = id === this.modeId;
-      const button = el('button', {
-        className: 'mode',
-        text: mode.label,
-        attrs: {
-          type: 'button',
-          id: `mode-${id}`,
-          'aria-pressed': String(active),
-          'aria-label': `${mode.label}: ${mode.blurb}`,
-        },
-      });
-      button.addEventListener('click', () => this.switchMode(id));
-      host.append(button);
-    }
-  }
-
   private render(): void {
-    const mode = MODES[this.modeId];
-    const cells = cellCount(this.grid);
+    const level = levelAt(this.state.depth);
+    const ended = this.state.status === 'ended';
 
-    byId('issue').textContent = this.grid.label;
-    byId('dek-mode').textContent = mode.blurb;
-    byId('strap-rules').textContent =
-      `${sentenceCount(cells)} cells. ${sentenceCount(cells)} guesses.`.replace(/^./, (c) =>
-        c.toUpperCase(),
-      );
+    document.body.dataset.depth = String(this.state.depth);
+    byId('issue').textContent = this.board.label;
     byId('left').textContent = String(this.state.guessesLeft);
     byId('score').textContent = String(totalScore(this.state));
+    byId('level-note').textContent = level.blurb;
+    byId('strap-rules').textContent = ended
+      ? 'Dive over.'
+      : `Fill the board to break through. Level ${level.depth} of ${MAX_DEPTH}.`;
 
-    renderBoard(this.boardEl, this.grid, this.state, {
+    this.renderGauge();
+    renderBoard(this.boardEl, this.board, this.state.solved, ended, {
       onOpenCell: (rowId, colId) => this.openCell(rowId, colId),
       onExplain: (categoryId) => {
         const category = categoryById(categoryId);
         if (category) this.info.open(category);
       },
     });
-    renderResult(this.grid, this.state);
+    renderResult(this.board, this.state);
   }
 
-  private switchMode(id: ModeId): void {
-    if (id === this.modeId) return;
-    this.modeId = id;
-    try {
-      window.localStorage.setItem(MODE_KEY, id);
-    } catch {
-      // Losing the preference is not worth failing the switch over.
-    }
+  private renderGauge(): void {
+    const host = byId<HTMLDivElement>('gauge');
+    clear(host);
 
-    // Back to variant 0: the day's board for this mode, resumed if it was
-    // already in progress, rather than a fresh practice round.
-    this.grid = buildGrid(this.puzzleNumber, 0, id);
-    this.state = loadGame(this.grid) ?? createGame(this.grid);
-    this.renderModes();
-    this.render();
-    window.scrollTo?.({ top: 0, behavior: 'smooth' });
+    for (const level of LEVELS) {
+      const cleared = this.state.deepestCleared >= level.depth;
+      const here = this.state.depth === level.depth && this.state.status === 'diving';
+      const node = el('div', {
+        className: [cleared ? 'cleared' : '', here ? 'here' : ''].filter(Boolean).join(' '),
+        attrs: {
+          'aria-current': here ? 'step' : 'false',
+          'aria-label': `Level ${level.depth}, ${level.name}${cleared ? ', cleared' : here ? ', current' : ''}`,
+        },
+      });
+      node.append(el('b', { text: String(level.depth) }), level.name);
+      host.append(node);
+    }
   }
 
   private openCell(rowId: string, colId: string): void {
-    const row = this.grid.rows.find((c) => c.id === rowId);
-    const col = this.grid.cols.find((c) => c.id === colId);
+    if (this.breaking || this.state.status === 'ended') return;
+
+    const row = this.board.rows.find((c) => c.id === rowId);
+    const col = this.board.cols.find((c) => c.id === colId);
     if (!row || !col) return;
 
     this.picker.open({
@@ -136,19 +100,19 @@ export class App {
 
   private submit(rowId: string, colId: string, athleteId: string): void {
     const before = this.state;
-    const outcome = applyGuess(this.grid, before, rowId, colId, athleteId);
+    const outcome = applyGuess(this.board, before, rowId, colId, athleteId);
 
     if (outcome.kind === 'rejected') {
       toast(
         outcome.reason === 'already-used'
-          ? 'That athlete is already on the board'
+          ? 'That athlete is already on this level'
           : 'That guess could not be played',
       );
       return;
     }
 
     this.state = outcome.state;
-    saveGame(this.state);
+    saveDive(this.state);
 
     if (outcome.kind === 'hit') {
       toast(`${outcome.athlete.name} — +${outcome.points}`);
@@ -159,9 +123,37 @@ export class App {
 
     this.render();
 
-    if (this.state.status === 'finished' && before.status !== 'finished') {
+    if (outcome.kind === 'hit' && outcome.cleared && this.state.status === 'diving') {
+      this.breakThrough();
+      return;
+    }
+    if (this.state.status === 'ended' && before.status !== 'ended') {
       byId('result').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }
+  }
+
+  /**
+   * The ice gives way. The board is rendered as cleared for the whole animation
+   * so the player sees the level they just finished, and input is locked until
+   * the next one has risen.
+   */
+  private breakThrough(): void {
+    this.breaking = true;
+    this.stageEl.classList.add('breaking');
+    toast(`Level ${this.state.depth} cleared — the ice gives way`);
+
+    window.setTimeout(() => {
+      this.state = descend(this.state);
+      this.board = boardFor(this.state);
+      saveDive(this.state);
+
+      this.stageEl.classList.remove('breaking');
+      this.stageEl.classList.add('rising');
+      this.breaking = false;
+      this.render();
+
+      window.setTimeout(() => this.stageEl.classList.remove('rising'), 500);
+    }, BREAK_MS);
   }
 
   private flashMiss(): void {
@@ -171,17 +163,14 @@ export class App {
     window.setTimeout(() => bar.classList.remove('flash-miss'), 320);
   }
 
-  /**
-   * Practice grids for the same day. The daily board stays at variant 0 so
-   * coming back later resumes it rather than a practice round.
-   */
-  private nextGrid(): void {
-    const nextVariant = this.grid.variant + 1;
-    this.grid = buildGrid(this.puzzleNumber, nextVariant, this.modeId);
-    this.state = loadGame(this.grid) ?? createGame(this.grid);
+  /** A fresh practice dive on the same day. The daily dive stays at variant 0. */
+  private newDive(): void {
+    const variant = this.state.variant + 1;
+    this.state = loadDive(this.day, variant) ?? createDive(this.day, variant);
+    this.board = boardFor(this.state);
     this.render();
     window.scrollTo?.({ top: 0, behavior: 'smooth' });
-    toast(`${this.grid.label} — ${solvedCount(this.state)}/${cellCount(this.grid)} solved`);
+    toast(`${this.board.label} — back to the surface`);
   }
 }
 
