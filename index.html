@@ -3,41 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A daily football and basketball dive. Clear a level, break the ice, drop to a harder one.">
+<meta name="description" content="A daily football and basketball board. Fill a row to open the next, harder one.">
 <meta name="theme-color" content="#F2CDBF">
-<title>Ball Knowledge — the daily dive</title>
+<title>Ball Knowledge — the daily board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body data-depth="1">
+<body>
 
 <a class="skip" href="#board">Skip to the board</a>
 
 <header class="masthead">
   <h1><span>Ball</span><span>Knowledge</span></h1>
   <div class="dek">
-    <span id="issue">Dive No. 001</span>
+    <span id="issue">No. 001</span>
     <span>Football × NBA</span>
   </div>
 </header>
 
-<div class="gauge" id="gauge" role="group" aria-label="Dive depth"></div>
-
 <div class="strap">
-  <span id="strap-rules">Fill the board to break through.</span>
+  <span id="strap-rules">Fill a row to open the next.</span>
   <span>Tap a heading for <b>what counts</b></span>
 </div>
 
 <main>
-  <div class="stage" id="stage">
-    <div class="board" id="board"></div>
-    <div class="cracks" id="cracks" aria-hidden="true">
-      <i></i><i></i><i></i><i></i><i></i><i></i>
-    </div>
-  </div>
-
-  <p class="level-note" id="level-note"></p>
+  <div class="board" id="board"></div>
 
   <section class="result" id="result" aria-live="polite">
     <h2 id="verdict"></h2>
@@ -49,9 +40,9 @@
 </main>
 
 <div class="bar">
-  <span class="pill">Guesses left<b id="left">7</b></span>
+  <span class="pill">Guesses left<b id="left">15</b></span>
   <span class="pill">Rarity score<b id="score">0</b></span>
-  <button class="act" id="next" type="button">New dive</button>
+  <button class="act" id="next" type="button">New board</button>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>

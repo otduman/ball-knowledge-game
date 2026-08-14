@@ -1,5 +1,5 @@
 import type { Athlete } from '../data/types';
-import { LEVELS, MAX_DEPTH, levelAt } from './levels';
+import { MAX_DEPTH } from './levels';
 
 /**
  * Rarity score for naming an athlete: the share of players who would *not* have
@@ -15,33 +15,27 @@ export interface Verdict {
 }
 
 /**
- * The headline number is depth, not points. "How far down did you get" is the
- * question the game asks, and rarity is the tiebreaker between two players who
- * got equally deep.
+ * The headline number is how far down the board opened. Rarity is the
+ * tiebreaker between two players who got equally deep.
  */
-export function verdictFor(deepestCleared: number, averageRarity: number): Verdict {
-  if (deepestCleared >= MAX_DEPTH) {
+export function verdictFor(rowsCleared: number, averageRarity: number): Verdict {
+  if (rowsCleared >= MAX_DEPTH) {
     return {
-      title: averageRarity >= 90 ? 'Bedrock, on deep cuts' : 'You hit bedrock',
+      title: averageRarity >= 90 ? 'The whole board, on deep cuts' : 'The whole board',
       blurb:
         averageRarity >= 90
-          ? 'The whole dive, and barely a household name in it. There is nothing left to teach you.'
-          : 'All the way down. Try it again and see how obscure you can go.',
+          ? 'Every row, and barely a household name among them. There is nothing left to teach you.'
+          : 'Every row open and filled. Try again and see how obscure you can go.',
     };
   }
-  if (deepestCleared === 0) {
+  if (rowsCleared === 0) {
     return {
-      title: 'The ice held',
-      blurb: 'You never made it through the surface. The reveal below shows names that would have worked.',
+      title: 'Stuck on the first row',
+      blurb: 'The board never opened. The names below would have worked.',
     };
   }
-
-  const level = levelAt(deepestCleared);
-  const next = LEVELS[deepestCleared];
   return {
-    title: `Stopped at ${level.name}`,
-    blurb: next
-      ? `Level ${deepestCleared} of ${MAX_DEPTH} cleared. ${next.name} was where it got you.`
-      : `Level ${deepestCleared} of ${MAX_DEPTH} cleared.`,
+    title: `${rowsCleared} of ${MAX_DEPTH} rows`,
+    blurb: `Row ${rowsCleared + 1} is where it stopped. Each row down has fewer answers than the last.`,
   };
 }

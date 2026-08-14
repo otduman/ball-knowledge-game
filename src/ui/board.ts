@@ -1,15 +1,26 @@
 import { athleteById } from '../data/rosters';
 import type { Athlete } from '../data/types';
 import type { Category } from '../engine/categories';
-import { diveCellKey } from '../engine/dive';
+import { cellKey } from '../engine/dive';
 import type { Board } from '../engine/grid';
-import { poolDepth, poolFor } from '../engine/pools';
+import { MAX_DEPTH } from '../engine/levels';
+import { poolFor } from '../engine/pools';
 import { rarityScore } from '../engine/scoring';
 import { clear, el } from './dom';
 
 export interface BoardHandlers {
   onOpenCell(rowId: string, colId: string): void;
   onExplain(categoryId: string): void;
+}
+
+export interface BoardView {
+  board: Board;
+  solved: Record<string, string>;
+  /** How many rows are open. Rows below this are not rendered at all. */
+  openRows: number;
+  /** The row that just opened, animated in. 0 for none. */
+  openingRow: number;
+  revealed: boolean;
 }
 
 /** Renders the surname on its own, larger line, the way the prototype did. */
@@ -59,28 +70,31 @@ function deadCellNode(example: Athlete | undefined, rowLabel: string, colLabel: 
   return button;
 }
 
-function openCellNode(
-  rowLabel: string,
-  colLabel: string,
-  depth: 1 | 2 | 3,
-  onOpen: () => void,
-): HTMLButtonElement {
+function openCellNode(rowLabel: string, colLabel: string, onOpen: () => void): HTMLButtonElement {
   const button = el('button', {
     className: 'cell',
     attrs: {
       type: 'button',
-      'aria-label': `Name an athlete from ${rowLabel} in ${colLabel}. Pool depth ${depth} of 3.`,
+      'aria-label': `Name an athlete from ${rowLabel} in ${colLabel}.`,
     },
   });
-
-  const dots = el('span', { className: 'depth', attrs: { 'aria-hidden': 'true' } });
-  for (let i = 0; i < 3; i++) {
-    dots.append(el('i', { className: i < depth ? 'on' : '' }));
-  }
-
-  button.append(dots, el('span', { className: 'plus', text: '+', attrs: { 'aria-hidden': 'true' } }));
+  button.append(el('span', { className: 'plus', text: '+', attrs: { 'aria-hidden': 'true' } }));
   button.addEventListener('click', onOpen);
   return button;
+}
+
+/**
+ * The row's difficulty, as ticks filled to its depth. It belongs on the row and
+ * not in the cells: both cells of a row share a window, and one mark reads at a
+ * glance where two sets of dots did not.
+ */
+function tierNode(depth: number): HTMLElement {
+  const bar = el('span', {
+    className: 'tier',
+    attrs: { 'aria-label': `Difficulty ${depth} of ${MAX_DEPTH}` },
+  });
+  for (let i = 1; i <= MAX_DEPTH; i++) bar.append(el('i', { className: i <= depth ? 'on' : '' }));
+  return bar;
 }
 
 /**
@@ -93,12 +107,14 @@ function headingNode(
   className: string,
   labelClass: string,
   handlers: BoardHandlers,
+  depth?: number,
 ): HTMLElement {
   const label = el('span', { className: labelClass, text: category.label });
 
   if (!category.explain) {
     const plain = el('div', { className: `${className} plain` });
     plain.append(label);
+    if (depth) plain.append(tierNode(depth));
     return plain;
   }
 
@@ -107,20 +123,14 @@ function headingNode(
     attrs: { type: 'button', 'aria-label': `${category.label}. What counts: ${category.hint}` },
   });
   button.append(label);
-  if (category.shortHint) {
-    button.append(el('span', { className: 'sub', text: category.shortHint }));
-  }
+  if (category.shortHint) button.append(el('span', { className: 'sub', text: category.shortHint }));
+  if (depth) button.append(tierNode(depth));
   button.addEventListener('click', () => handlers.onExplain(category.id));
   return button;
 }
 
-export function renderBoard(
-  container: HTMLElement,
-  board: Board,
-  solved: Record<string, string>,
-  revealed: boolean,
-  handlers: BoardHandlers,
-): void {
+export function renderBoard(container: HTMLElement, view: BoardView, handlers: BoardHandlers): void {
+  const { board, solved, openRows, openingRow, revealed } = view;
   clear(container);
   container.style.gridTemplateColumns = `1.32fr repeat(${board.cols.length}, 1fr)`;
 
@@ -132,34 +142,44 @@ export function renderBoard(
     container.append(headingNode(col, 'head', 'txt', handlers));
   }
 
-  for (const row of board.rows) {
-    container.append(headingNode(row, 'rowhead', 'lbl', handlers));
+  for (let depth = 1; depth <= openRows; depth++) {
+    const row = board.rows[depth - 1];
+    if (!row) continue;
+    const opening = depth === openingRow ? ' opening' : '';
+
+    const heading = headingNode(row, 'rowhead', 'lbl', handlers, depth);
+    heading.className += opening;
+    container.append(heading);
 
     for (const col of board.cols) {
-      const key = diveCellKey(board.depth, row.id, col.id);
-      const solvedId = solved[key];
+      const solvedId = solved[cellKey(row.id, col.id)];
       const pool = poolFor(row, col);
+      let node: HTMLElement | undefined;
 
       if (solvedId) {
         const athlete = athleteById(solvedId);
-        if (athlete) {
-          container.append(solvedCellNode(athlete, row.label, col.label));
-          continue;
-        }
+        if (athlete) node = solvedCellNode(athlete, row.label, col.label);
       }
-
-      if (revealed) {
+      if (!node && revealed) {
         // Reveal from just inside the pool rather than the very top name.
         const example = pool[Math.min(Math.floor(pool.length / 3), Math.max(0, pool.length - 1))];
-        container.append(deadCellNode(example, row.label, col.label));
-        continue;
+        node = deadCellNode(example, row.label, col.label);
+      }
+      if (!node) {
+        node = openCellNode(row.label, col.label, () => handlers.onOpenCell(row.id, col.id));
       }
 
-      container.append(
-        openCellNode(row.label, col.label, poolDepth(pool.length), () =>
-          handlers.onOpenCell(row.id, col.id),
-        ),
-      );
+      node.className += opening;
+      container.append(node);
     }
+  }
+
+  if (!revealed && openRows < MAX_DEPTH) {
+    container.append(
+      el('div', {
+        className: 'locked',
+        text: `${MAX_DEPTH - openRows} more ${MAX_DEPTH - openRows === 1 ? 'row' : 'rows'} below`,
+      }),
+    );
   }
 }

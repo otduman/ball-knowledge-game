@@ -1,79 +1,67 @@
 /**
- * The dive, measured. Reports per depth: how many boards exist, how deep the
- * cells are, which row groups get airtime, and — the failure this exists to
- * catch — whether any single row is pinned to every board because its group is
- * the only one left with a survivor in that pool window.
+ * The board, measured. One row per level, each window tighter than the last:
+ * how many rows each window can field, how deep their cells are, which kinds of
+ * question survive at each depth, and how long the daily sequence runs before a
+ * row recurs in the same slot.
  */
-import { rowsForSports } from '../src/engine/categories';
-import { buildBoard, catalogSizes, feasibleBoards } from '../src/engine/grid';
-import { COLUMN_SPORTS, LEVELS, cellsAt, guessesAt } from '../src/engine/levels';
+import { buildBoard, rowFloor, rowsForLevel } from '../src/engine/grid';
+import { COLUMN_SPORTS, LEVELS, MAX_DEPTH, STARTING_GUESSES, TOTAL_CELLS } from '../src/engine/levels';
+import { colsForSports } from '../src/engine/categories';
 import { poolFor } from '../src/engine/pools';
 
-const SAMPLE = 200;
+const cols = colsForSports(COLUMN_SPORTS);
+console.log(`${MAX_DEPTH} rows, ${TOTAL_CELLS} cells, ${STARTING_GUESSES} guesses\n`);
 
-console.log('== the dive ==');
-const sizes = catalogSizes();
+console.log('== the windows ==');
 for (const level of LEVELS) {
-  const boards = sizes.find((s) => s.depth === level.depth)?.boards ?? 0;
-  const cat = feasibleBoards(level);
-
-  const sizesAt: number[] = [];
-  for (const e of cat) for (const r of e.rows) for (const c of e.cols) sizesAt.push(poolFor(r, c).length);
-  sizesAt.sort((a, b) => a - b);
-  const median = sizesAt[Math.floor(sizesAt.length / 2)] ?? 0;
-
-  // A row on every board is a thin catalogue wearing a costume.
-  const rowCounts = new Map<string, number>();
-  for (const e of cat) for (const r of e.rows) rowCounts.set(r.label, (rowCounts.get(r.label) ?? 0) + 1);
-  const forced = [...rowCounts.entries()].filter(([, n]) => n === cat.length).map(([l]) => l);
-
-  const usable = rowsForSports(COLUMN_SPORTS).filter((r) =>
-    [...colsOf()].every((c) => {
-      const n = poolFor(r, c).length;
-      return n >= level.minPool && n <= level.maxPool;
-    }),
-  );
+  const rows = rowsForLevel(level);
   const groups = new Map<string, number>();
-  for (const r of usable) groups.set(r.group, (groups.get(r.group) ?? 0) + 1);
+  for (const r of rows) groups.set(r.group, (groups.get(r.group) ?? 0) + 1);
+
+  const floors = rows.map((r) => rowFloor(r, cols)).sort((a, b) => a - b);
+  const median = floors[Math.floor(floors.length / 2)] ?? 0;
 
   console.log(
-    `\nL${level.depth} ${level.name.padEnd(12)} ${level.rowCount} rows / ${cellsAt(level.depth)} cells / ${guessesAt(level.depth)} guesses`,
+    `  row ${level.depth}  window ${String(level.minPool).padStart(3)}-${String(level.maxPool).padEnd(3)}  ` +
+      `${String(rows.length).padStart(3)} rows  tightest cell median ${median}  ` +
+      `${[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([g, n]) => `${g} ${n}`).join(' · ')}`,
   );
-  console.log(`   window ${level.minPool}-${level.maxPool}   boards ${boards}   median cell ${median}`);
-  console.log(`   rows in window: ${usable.length} across ${groups.size} groups — ${[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([g, n]) => `${g} ${n}`).join(' · ')}`);
-  if (forced.length > 0) console.log(`   !! ON EVERY BOARD: ${forced.join(', ')}`);
-  if (boards < 150) console.log('   !! too thin to survive repeat play');
-
-  const slots = new Map<string, number>();
-  let n = 0;
-  for (let i = 1; i <= SAMPLE; i++) {
-    for (const r of buildBoard(i, level.depth).rows) {
-      slots.set(r.group, (slots.get(r.group) ?? 0) + 1);
-      n++;
-    }
-  }
-  console.log(`   airtime: ${[...slots.entries()].sort((a, b) => b[1] - a[1]).map(([g, c]) => `${g} ${Math.round((c / n) * 100)}%`).join(' · ')}`);
+  if (rows.length < 8) console.log('     !! too few rows to stay fresh');
 }
 
-function colsOf() {
-  return buildBoard(1, 1).cols;
-}
-
-console.log('\n== a full dive on day 1 ==');
+console.log('\n== airtime over 200 boards, per row slot ==');
 for (const level of LEVELS) {
-  const b = buildBoard(1, level.depth);
-  const cells = b.rows.flatMap((r) => b.cols.map((c) => poolFor(r, c).length));
-  console.log(`  L${b.depth} ${level.name.padEnd(12)} ${b.rows.map((r) => r.label).join(' / ')}  — cells ${cells.join(',')}`);
+  const seen = new Map<string, number>();
+  const groups = new Map<string, number>();
+  for (let day = 1; day <= 200; day++) {
+    const row = buildBoard(day).rows[level.depth - 1]!;
+    seen.set(row.label, (seen.get(row.label) ?? 0) + 1);
+    groups.set(row.group, (groups.get(row.group) ?? 0) + 1);
+  }
+  const top = [...seen.entries()].sort((a, b) => b[1] - a[1])[0]!;
+  console.log(
+    `  row ${level.depth}  ${seen.size} distinct rows  most frequent "${top[0]}" ${Math.round((top[1] / 200) * 100)}%  ` +
+      `groups: ${[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([g, c]) => `${g} ${Math.round((c / 200) * 100)}%`).join(' · ')}`,
+  );
 }
 
-console.log('\n== repeat horizon per depth ==');
-for (const level of LEVELS) {
-  const seen = new Set<string>();
-  let first = -1;
-  for (let i = 1; i <= 1500; i++) {
-    const key = buildBoard(i, level.depth).rows.map((r) => r.id).sort().join('|');
-    if (seen.has(key) && first < 0) first = i;
-    seen.add(key);
+console.log('\n== the next three boards ==');
+for (let day = 1; day <= 3; day++) {
+  const board = buildBoard(day);
+  console.log(`  ${board.label}`);
+  for (let d = 1; d <= MAX_DEPTH; d++) {
+    const row = board.rows[d - 1]!;
+    const sizes = board.cols.map((c) => poolFor(row, c).length);
+    console.log(`    ${d}  ${row.label.padEnd(24)} ${sizes.join(' / ')}`);
   }
-  console.log(`  L${level.depth} ${level.name.padEnd(12)} first repeat at ${first < 0 ? '>1500' : first} days`);
 }
+
+console.log('\n== whole-board repeat horizon ==');
+const seen = new Set<string>();
+let first = -1;
+for (let day = 1; day <= 2000; day++) {
+  const key = buildBoard(day).rows.map((r) => r.id).join('|');
+  if (seen.has(key) && first < 0) first = day;
+  seen.add(key);
+}
+console.log(`  ${seen.size} distinct boards in 2000 days, first repeat at ${first < 0 ? '>2000' : first}`);

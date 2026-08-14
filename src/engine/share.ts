@@ -1,31 +1,26 @@
 import type { DiveState } from './dive';
-import { diveCellKey, totalScore, totalSolved } from './dive';
-import { buildBoard } from './grid';
-import { LEVELS, MAX_DEPTH } from './levels';
+import { cellKey, rowsCleared, totalScore, totalSolved } from './dive';
+import type { Board } from './grid';
+import { MAX_DEPTH } from './levels';
 
 const HIT = '\u{1F7E6}';
 const MISS = '⬜';
-const ICE = '\u{1F9CA}';
 
 /**
- * Result text for sharing. Shows how deep the dive went and the shape of each
- * level, but never a name, so posting it cannot spoil the day's dive.
+ * Result text for sharing. Shows how far down the board opened and which cells
+ * fell, but never a name, so posting it cannot spoil the day.
  */
-export function buildShareText(state: DiveState): string {
+export function buildShareText(board: Board, state: DiveState): string {
   const solved = totalSolved(state);
   const score = totalScore(state);
+  const cleared = rowsCleared(state, board);
 
-  const lines = [
-    `Ball Knowledge Dive No. ${String(state.day).padStart(3, '0')} — ${ICE} ${state.deepestCleared}/${MAX_DEPTH} levels · ${score} pts`,
-  ];
+  const lines = [`Ball Knowledge ${board.label} — ${cleared}/${MAX_DEPTH} rows · ${score} pts`];
 
-  for (const level of LEVELS) {
-    if (level.depth > state.depth) break;
-    const board = buildBoard(state.day, level.depth, state.variant);
-    const marks = board.rows
-      .map((row) => board.cols.map((col) => (state.solved[diveCellKey(level.depth, row.id, col.id)] ? HIT : MISS)).join(''))
-      .join(' ');
-    lines.push(`${level.depth} ${marks}`);
+  for (let depth = 1; depth <= state.openRows; depth++) {
+    const row = board.rows[depth - 1];
+    if (!row) continue;
+    lines.push(board.cols.map((col) => (state.solved[cellKey(row.id, col.id)] ? HIT : MISS)).join(''));
   }
 
   if (solved > 0) lines.push(`Avg rarity ${Math.round(score / solved)}/99`);

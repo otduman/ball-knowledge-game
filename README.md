@@ -1,25 +1,28 @@
 # Ball Knowledge
 
-A daily **dive** through football and basketball. Two columns, five levels: name
-an athlete who fits both the row and the column, fill the board, and the ice
-breaks under you. Each level down is colder, tighter and stranger than the last.
+A daily football and basketball board that opens one row at a time. Two columns,
+six rows: name an athlete who fits both, fill the row, and the next one opens
+beneath it — narrower than the one above.
 
 ```
-        FOOTBALL   NBA          gauge:  [1]  [2]  [3]  [4]  [5]
-SPAIN      +        +                   surface -> bedrock
-SURNAME E  +        +
-BORN 1994  +        +          fill the board -> the ice cracks -> you drop
+              FOOTBALL   NBA
+EASTERN EUROPE   +        +     ▚▚▚▚▚▚   87 / 75 answers
+SHORT SURNAME    +        +     ▚▚▚▚▚·   79 / 31
+AFRICA           +        +     ▚▚▚▚··   57 / 26
+SURNAME H        +        +     ▚▚▚···   32 / 15
+BORN IN 1993     +        +     ▚▚····   24 / 11
+BORN IN 1979     +        +     ▚·····   11 / 8
 ```
 
-How deep you get is the score; rarity is the tiebreaker. One guess per cell plus
-a single spare, and the run ends where you stop breaking through.
+Fifteen guesses for the whole board, right or wrong. How far down you get is the
+score; rarity is the tiebreaker.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 67 tests
+npm test           # 69 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
@@ -101,37 +104,37 @@ players in both football and the NBA), **surname length** (only one band is
 narrow enough), **cross-sport clubs**, **jersey numbers**, **US college**,
 **handedness**, **height**. Reasons are in the git history and the probe scripts.
 
-### Levels are windows, not difficulty flags
+### Rows open one at a time
 
-[levels.ts](src/engine/levels.ts) defines each depth as a pool window plus a
-shape. What makes a level hard is the **ceiling** on cell size, not the floor:
+[levels.ts](src/engine/levels.ts) defines each row as a pool window. What makes
+a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
-| level | rows | cells | window | boards | median cell |
-|---|---|---|---|---|---|
-| 1 Surface | 3 | 6 | 18-300 | 2297 | 56 |
-| 2 First crack | 3 | 6 | 14-95 | 1520 | 31 |
-| 3 Cold water | 3 | 6 | 11-48 | 4231 | 18 |
-| 4 The trench | 4 | 8 | 8-30 | 52749 | 14 |
-| 5 Bedrock | 4 | 8 | 6-20 | 16346 | 10 |
+| row | window | candidates | tightest cell, median |
+|---|---|---|---|
+| 1 | 32-300 | 13 | 55 |
+| 2 | 24-110 | 17 | 31 |
+| 3 | 16-70 | 21 | 21 |
+| 4 | 11-40 | 28 | 14 |
+| 5 | 8-24 | 28 | 10 |
+| 6 | 6-17 | 24 | 9 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
 harder. Fewer columns is fewer places to hide, not a harder question.
 
-Two failures the level probe exists to catch, both of which happened:
+**The windows overlap on purpose.** Disjoint bands looked tidier but starved the
+top three rows at ten candidates each, so the same headings came round every few
+days. Overlapping them roughly doubles the candidates, and the board stays
+honest because [grid.ts](src/engine/grid.ts) requires each row to be strictly
+tighter than the row above rather than trusting the bands to arrange it. That is
+the promise the difficulty ticks make, so it is a test rather than a convention.
 
-- **A row pinned to every board.** Below ~12 answers a cell, only three groups
-  still have rows at all, so demanding four *distinct* kinds forced the sole
-  survivor of a thin group onto 100% of boards. `minDistinctGroups` relaxes with
-  depth for exactly this reason.
-- **A level too thin to replay.** Every depth now runs at least 500 days before
-  a board recurs; the surface runs 1323.
-
-Selection walks a seeded permutation of each depth's catalogue, stratified by
-the multiset of row kinds so a group's airtime is not proportional to how many
-rows it happens to contain. Enumeration filters rows to the level window
-*before* walking combinations — the difference between C(148, 4) and C(39, 4),
-and a 20x speedup, with identical output.
+Rows are drawn one per window from a seeded shuffle, not enumerated as whole
+boards: the product of six windows is far too large to enumerate and there is
+nothing to enumerate *for*, since the rows are chosen independently. The
+consequence is that two distant days can collide by chance — the guarantee that
+holds, and that the tests assert, is no repeat within any month and at least 360
+distinct boards a year.
 
 ## Enrichment pipeline
 

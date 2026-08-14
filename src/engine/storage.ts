@@ -1,12 +1,12 @@
 import { athleteById } from '../data/rosters';
 import type { DiveState } from './dive';
-import { diveCellKey } from './dive';
+import { cellKey, isRowComplete } from './dive';
 import { buildBoard } from './grid';
-import { MAX_DEPTH, guessesAt } from './levels';
+import { MAX_DEPTH, STARTING_GUESSES } from './levels';
 
-// v3 stores a dive rather than a single board. Earlier saves describe a game
-// that no longer exists, so the prefix change discards them.
-const VERSION = 3;
+// v4 stores a board that grows row by row. Earlier saves describe games that no
+// longer exist, so the prefix change discards them.
+const VERSION = 4;
 const PREFIX = `bk:v${VERSION}`;
 
 function storageKey(day: number, variant: number): string {
@@ -32,22 +32,25 @@ export function saveDive(state: DiveState): void {
     store.setItem(
       storageKey(state.day, state.variant),
       JSON.stringify({
-        depth: state.depth,
+        openRows: state.openRows,
         guessesLeft: state.guessesLeft,
         solved: state.solved,
-        deepestCleared: state.deepestCleared,
         status: state.status,
       }),
     );
   } catch {
-    // A full quota should never cost the player their in-memory dive.
+    // A full quota should never cost the player their in-memory board.
   }
 }
 
 /**
- * Rehydrates a dive, discarding anything that no longer holds. Roster edits
+ * Rehydrates a board, discarding anything that no longer holds. Roster edits
  * between releases can invalidate a stored answer, and silently keeping a cell
  * the current data would reject makes the board lie about the score.
+ *
+ * `openRows` is re-derived rather than trusted: it is a function of which rows
+ * are actually full, so a save that claims row 5 while row 2 has a hole in it
+ * corrects itself instead of handing out free depth.
  */
 export function loadDive(day: number, variant: number): DiveState | null {
   const store = storage();
@@ -58,48 +61,42 @@ export function loadDive(day: number, variant: number): DiveState | null {
 
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const depth = parsed.depth;
     const guessesLeft = parsed.guessesLeft;
     const solvedRaw = parsed.solved;
 
-    if (typeof depth !== 'number' || !Number.isInteger(depth) || depth < 1 || depth > MAX_DEPTH) {
-      return null;
-    }
     if (typeof guessesLeft !== 'number' || !Number.isInteger(guessesLeft)) return null;
-    if (guessesLeft < 0 || guessesLeft > guessesAt(depth)) return null;
+    if (guessesLeft < 0 || guessesLeft > STARTING_GUESSES) return null;
     if (typeof solvedRaw !== 'object' || solvedRaw === null) return null;
 
-    // Re-derive every solved cell from the boards themselves, so a stored key
-    // that no longer names a real cell simply vanishes.
+    const board = buildBoard(day, variant);
     const solved: Record<string, string> = {};
-    let deepestCleared = 0;
+    const used = new Set<string>();
 
-    for (let d = 1; d <= depth; d++) {
-      const board = buildBoard(day, d, variant);
-      const used = new Set<string>();
-      let filled = 0;
+    for (const row of board.rows) {
+      for (const col of board.cols) {
+        const key = cellKey(row.id, col.id);
+        const id = (solvedRaw as Record<string, unknown>)[key];
+        if (typeof id !== 'string') continue;
 
-      for (const row of board.rows) {
-        for (const col of board.cols) {
-          const key = diveCellKey(d, row.id, col.id);
-          const id = (solvedRaw as Record<string, unknown>)[key];
-          if (typeof id !== 'string') continue;
+        const athlete = athleteById(id);
+        if (!athlete) continue;
+        if (used.has(id)) continue;
+        if (!row.matches(athlete) || !col.matches(athlete)) continue;
 
-          const athlete = athleteById(id);
-          if (!athlete) continue;
-          if (used.has(id)) continue;
-          if (!row.matches(athlete) || !col.matches(athlete)) continue;
-
-          solved[key] = id;
-          used.add(id);
-          filled++;
-        }
+        solved[key] = id;
+        used.add(id);
       }
-      if (filled === board.rows.length * board.cols.length) deepestCleared = d;
     }
 
-    const status = parsed.status === 'ended' ? 'ended' : 'diving';
-    return { day, variant, depth, guessesLeft, solved, deepestCleared, status };
+    const probe: DiveState = { day, variant, openRows: MAX_DEPTH, guessesLeft, solved, status: 'diving' };
+    let openRows = 1;
+    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+      if (!isRowComplete(probe, board, depth)) break;
+      openRows = Math.min(depth + 1, MAX_DEPTH);
+    }
+
+    const finished = guessesLeft <= 0 || isRowComplete(probe, board, MAX_DEPTH);
+    return { day, variant, openRows, guessesLeft, solved, status: finished ? 'ended' : 'diving' };
   } catch {
     return null;
   }

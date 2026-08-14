@@ -1,77 +1,69 @@
 import { athleteById } from '../data/rosters';
 import type { Athlete } from '../data/types';
 import type { Board } from './grid';
-import { buildBoard, cellCount } from './grid';
-import { MAX_DEPTH, guessesAt, levelAt } from './levels';
+import { buildBoard } from './grid';
+import { MAX_DEPTH, STARTING_GUESSES } from './levels';
 import { poolFor } from './pools';
 import { rarityScore } from './scoring';
 
 export type DiveStatus = 'diving' | 'ended';
 
 export interface DiveState {
-  /** Puzzle number: which day's dive. */
   day: number;
   variant: number;
-  /** The level currently being played, 1-based. */
-  depth: number;
-  /** Guesses remaining at this level. They reset on every descent. */
+  /** How many rows are open. Starts at 1; the board grows downward. */
+  openRows: number;
   guessesLeft: number;
-  /** `depth|rowId|colId` -> athlete id, kept for the whole dive. */
+  /** `rowId|colId` -> athlete id. */
   solved: Record<string, string>;
-  /** Deepest level completely filled. 0 before the first one falls. */
-  deepestCleared: number;
   status: DiveStatus;
 }
 
 export type GuessOutcome =
-  | { kind: 'hit'; athlete: Athlete; points: number; cleared: boolean; state: DiveState }
+  | { kind: 'hit'; athlete: Athlete; points: number; opened: boolean; state: DiveState }
   | { kind: 'miss'; athlete: Athlete; state: DiveState }
   | { kind: 'rejected'; reason: RejectionReason; state: DiveState };
 
-export type RejectionReason = 'dive-over' | 'cell-solved' | 'already-used' | 'unknown-athlete';
+export type RejectionReason = 'over' | 'cell-solved' | 'already-used' | 'unknown-athlete' | 'locked';
 
-export function diveCellKey(depth: number, rowId: string, colId: string): string {
-  return `${depth}|${rowId}|${colId}`;
+export function cellKey(rowId: string, colId: string): string {
+  return `${rowId}|${colId}`;
 }
 
 export function createDive(day: number, variant = 0): DiveState {
   return {
     day,
     variant,
-    depth: 1,
-    guessesLeft: guessesAt(1),
+    openRows: 1,
+    guessesLeft: STARTING_GUESSES,
     solved: {},
-    deepestCleared: 0,
     status: 'diving',
   };
 }
 
 export function boardFor(state: DiveState): Board {
-  return buildBoard(state.day, state.depth, state.variant);
+  return buildBoard(state.day, state.variant);
 }
 
-/** Athletes already used at this level. Reuse is barred per board, not per dive. */
-export function usedAthleteIds(state: DiveState, depth = state.depth): Set<string> {
-  const prefix = `${depth}|`;
-  const used = new Set<string>();
-  for (const [key, id] of Object.entries(state.solved)) {
-    if (key.startsWith(prefix)) used.add(id);
+/** Every athlete already on the board. One name, one cell, for the whole run. */
+export function usedAthleteIds(state: DiveState): Set<string> {
+  return new Set(Object.values(state.solved));
+}
+
+export function isRowComplete(state: DiveState, board: Board, depth: number): boolean {
+  const row = board.rows[depth - 1];
+  if (!row) return false;
+  return board.cols.every((col) => Boolean(state.solved[cellKey(row.id, col.id)]));
+}
+
+/** The deepest row fully filled, which is what the run is scored on. */
+export function rowsCleared(state: DiveState, board: Board): number {
+  let cleared = 0;
+  for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+    if (!isRowComplete(state, board, depth)) break;
+    cleared = depth;
   }
-  return used;
-}
-
-export function solvedOn(state: DiveState, board: Board): number {
-  let count = 0;
-  for (const row of board.rows) {
-    for (const col of board.cols) {
-      if (state.solved[diveCellKey(board.depth, row.id, col.id)]) count++;
-    }
-  }
-  return count;
-}
-
-export function isLevelComplete(state: DiveState, board: Board): boolean {
-  return solvedOn(state, board) >= cellCount(board);
+  return cleared;
 }
 
 export function totalSolved(state: DiveState): number {
@@ -88,9 +80,9 @@ export function totalScore(state: DiveState): number {
 }
 
 /**
- * Applies a guess to the level currently being played. A wrong name costs a
- * guess just like a right one, which is what makes naming a player you are only
- * half sure about a real decision.
+ * Applies a guess. A wrong name costs a guess just like a right one, and the
+ * budget covers the whole board, so a loose guess on the top row is paid for at
+ * the bottom.
  */
 export function applyGuess(
   board: Board,
@@ -100,10 +92,14 @@ export function applyGuess(
   athleteId: string,
 ): GuessOutcome {
   if (state.status === 'ended') {
-    return { kind: 'rejected', reason: 'dive-over', state };
+    return { kind: 'rejected', reason: 'over', state };
   }
 
-  const key = diveCellKey(board.depth, rowId, colId);
+  const depth = board.rows.findIndex((r) => r.id === rowId) + 1;
+  if (depth === 0) return { kind: 'rejected', reason: 'unknown-athlete', state };
+  if (depth > state.openRows) return { kind: 'rejected', reason: 'locked', state };
+
+  const key = cellKey(rowId, colId);
   if (state.solved[key]) {
     return { kind: 'rejected', reason: 'cell-solved', state };
   }
@@ -112,11 +108,11 @@ export function applyGuess(
   if (!athlete) {
     return { kind: 'rejected', reason: 'unknown-athlete', state };
   }
-  if (usedAthleteIds(state, board.depth).has(athleteId)) {
+  if (usedAthleteIds(state).has(athleteId)) {
     return { kind: 'rejected', reason: 'already-used', state };
   }
 
-  const row = board.rows.find((c) => c.id === rowId);
+  const row = board.rows[depth - 1];
   const col = board.cols.find((c) => c.id === colId);
   if (!row || !col) {
     return { kind: 'rejected', reason: 'unknown-athlete', state };
@@ -130,63 +126,56 @@ export function applyGuess(
   };
 
   if (!correct) {
-    // Running out of guesses ends the dive where it stands. There is no partial
-    // credit for a level: the ice either takes your weight or it does not.
-    const settled: DiveState = next.guessesLeft <= 0 ? { ...next, status: 'ended' } : next;
-    return { kind: 'miss', athlete, state: settled };
+    return {
+      kind: 'miss',
+      athlete,
+      state: next.guessesLeft <= 0 ? { ...next, status: 'ended' } : next,
+    };
   }
 
-  const cleared = isLevelComplete(next, board);
+  // Filling the deepest open row opens the next one, and filling the last row
+  // finishes the board.
+  const opened = isRowComplete(next, board, state.openRows) && state.openRows < MAX_DEPTH;
   let settled = next;
-  if (cleared) {
-    settled = { ...next, deepestCleared: Math.max(next.deepestCleared, board.depth) };
-    // Clearing the deepest level is the win condition, not a failure to descend.
-    if (board.depth >= MAX_DEPTH) settled = { ...settled, status: 'ended' };
-  } else if (next.guessesLeft <= 0) {
+  if (opened) {
+    settled = { ...next, openRows: state.openRows + 1 };
+  } else if (isRowComplete(next, board, MAX_DEPTH) && state.openRows === MAX_DEPTH) {
     settled = { ...next, status: 'ended' };
   }
+  if (settled.guessesLeft <= 0) settled = { ...settled, status: 'ended' };
 
-  return { kind: 'hit', athlete, points: rarityScore(athlete), cleared, state: settled };
-}
-
-/** Breaks through to the next level. Only valid once the current one is full. */
-export function descend(state: DiveState): DiveState {
-  if (state.status === 'ended' || state.depth >= MAX_DEPTH) return state;
-  const next = state.depth + 1;
-  return { ...state, depth: next, guessesLeft: guessesAt(next) };
+  return { kind: 'hit', athlete, points: rarityScore(athlete), opened, state: settled };
 }
 
 export interface MissedCell {
-  rowId: string;
-  colId: string;
   rowLabel: string;
   colLabel: string;
-  /** A few names that would have worked, skewed away from the most obvious. */
+  depth: number;
+  /** How many names would have worked — the row's difficulty, made concrete. */
+  poolSize: number;
   suggestions: Athlete[];
 }
 
+/** Unsolved cells of every row the player actually reached. */
 export function missedCells(board: Board, state: DiveState, perCell = 3): MissedCell[] {
   const out: MissedCell[] = [];
-  for (const row of board.rows) {
+  for (let depth = 1; depth <= state.openRows; depth++) {
+    const row = board.rows[depth - 1];
+    if (!row) continue;
     for (const col of board.cols) {
-      if (state.solved[diveCellKey(board.depth, row.id, col.id)]) continue;
+      if (state.solved[cellKey(row.id, col.id)]) continue;
 
       // Skip the very top of the pool so the reveal teaches something.
       const pool = poolFor(row, col);
       const offset = Math.min(Math.floor(pool.length / 4), Math.max(0, pool.length - perCell));
       out.push({
-        rowId: row.id,
-        colId: col.id,
         rowLabel: row.label,
         colLabel: col.label,
+        depth,
+        poolSize: pool.length,
         suggestions: pool.slice(offset, offset + perCell),
       });
     }
   }
   return out;
-}
-
-/** "Bedrock" or "Cold water" — how the run is described once it is over. */
-export function reachedName(state: DiveState): string {
-  return levelAt(Math.max(1, state.deepestCleared || state.depth)).name;
 }

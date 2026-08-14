@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { buildBoard } from '../src/engine/grid';
-import { MAX_DEPTH, guessesAt } from '../src/engine/levels';
+import { MAX_DEPTH, STARTING_GUESSES } from '../src/engine/levels';
 import { poolFor } from '../src/engine/pools';
 import { EPOCH_UTC } from '../src/engine/rng';
 import { start } from '../src/ui/app';
@@ -13,13 +13,12 @@ import { start } from '../src/ui/app';
 const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const BODY = /<body[^>]*>([\s\S]*?)<\/body>/.exec(html)?.[1] ?? '';
 
-/** Day 1 of the game, so the DOM test drives the same dive every run. */
+/** Day 1, so the DOM test drives the same board every run. */
 const DAY_ONE = new Date(EPOCH_UTC);
-const surface = buildBoard(1, 1);
+const board = buildBoard(1);
 
 function mount(): void {
   document.body.innerHTML = BODY.replace(/<script[\s\S]*?<\/script>/g, '');
-  document.body.dataset.depth = '1';
   window.localStorage.clear();
   // jsdom defines scrollTo but throws "Not implemented" from it.
   window.scrollTo = () => {};
@@ -27,6 +26,10 @@ function mount(): void {
 
 function cells(): HTMLButtonElement[] {
   return Array.from(document.querySelectorAll<HTMLButtonElement>('#board .cell'));
+}
+
+function rowHeadings(): string[] {
+  return Array.from(document.querySelectorAll('#board .rowhead .lbl')).map((n) => n.textContent ?? '');
 }
 
 function type(value: string): void {
@@ -39,127 +42,139 @@ function options(): HTMLButtonElement[] {
   return Array.from(document.querySelectorAll<HTMLButtonElement>('#sugg [role="option"]'));
 }
 
-/** Answers the cell at `index` of the current board with a name that fits it. */
-function answerCell(board: ReturnType<typeof buildBoard>, index: number): void {
-  const row = board.rows[Math.floor(index / board.cols.length)]!;
-  const col = board.cols[index % board.cols.length]!;
-  const used = new Set(
-    Array.from(document.querySelectorAll('#board .cell.solved .nm')).map((n) => n.textContent ?? ''),
+function solvedNames(): string[] {
+  return Array.from(document.querySelectorAll('#board .cell.solved')).map(
+    (n) => n.getAttribute('aria-label') ?? '',
   );
-  const answer = poolFor(row, col).find((a) => ![...used].some((u) => u.includes(a.name)))!;
-
-  cells()[index]?.click();
-  type(answer.name);
-  options().find((o) => o.textContent?.includes(answer.name))?.click();
 }
 
-describe('the dive boots', () => {
+/** Fills open row `depth`, cell by cell, through the real UI. */
+function fillRow(depth: number): void {
+  const row = board.rows[depth - 1]!;
+  for (let i = 0; i < board.cols.length; i++) {
+    const col = board.cols[i]!;
+    const used = solvedNames();
+    const answer = poolFor(row, col).find((a) => !used.some((label) => label.includes(a.name)))!;
+    const index = (depth - 1) * board.cols.length + i;
+
+    cells()[index]?.click();
+    type(answer.name);
+    options().find((o) => o.textContent?.includes(answer.name))?.click();
+  }
+}
+
+describe('the board boots', () => {
   beforeEach(mount);
 
-  it('opens at the surface with the day 1 board', () => {
+  it('shows only the first row', () => {
     start(DAY_ONE);
 
-    expect(cells()).toHaveLength(surface.rows.length * surface.cols.length);
-    expect(document.getElementById('issue')?.textContent).toBe(surface.label);
-    expect(document.getElementById('left')?.textContent).toBe(String(guessesAt(1)));
-    expect(document.body.dataset.depth).toBe('1');
-
-    const headings = Array.from(document.querySelectorAll('#board .head')).map((n) => n.textContent);
-    expect(headings).toEqual(surface.cols.map((c) => c.label));
+    expect(cells()).toHaveLength(board.cols.length);
+    expect(rowHeadings()).toEqual([board.rows[0]!.label]);
+    expect(document.getElementById('left')?.textContent).toBe(String(STARTING_GUESSES));
+    expect(document.getElementById('issue')?.textContent).toBe(board.label);
   });
 
-  it('shows a depth gauge with one step per level, the first current', () => {
+  it('says how many rows are still below', () => {
     start(DAY_ONE);
-    const steps = Array.from(document.querySelectorAll('#gauge div'));
-
-    expect(steps).toHaveLength(MAX_DEPTH);
-    expect(steps[0]?.className).toContain('here');
-    expect(steps.some((s) => s.className.includes('cleared'))).toBe(false);
+    expect(document.querySelector('#board .locked')?.textContent).toContain(
+      `${MAX_DEPTH - 1} more rows`,
+    );
   });
 
-  it('opens the picker for a cell and lists matching athletes', () => {
+  it('marks the row with its difficulty', () => {
+    start(DAY_ONE);
+    const ticks = document.querySelectorAll('#board .rowhead .tier i');
+    expect(ticks).toHaveLength(MAX_DEPTH);
+    // Row one, so one tick lit.
+    expect(Array.from(ticks).filter((t) => t.className === 'on')).toHaveLength(1);
+  });
+
+  it('opens the picker and scores a correct answer', () => {
     start(DAY_ONE);
     cells()[0]?.click();
-
     expect((document.getElementById('sheet') as HTMLElement).hidden).toBe(false);
-    expect(document.getElementById('prompt')?.textContent).toContain(surface.rows[0]!.label);
+    expect(document.getElementById('prompt')?.textContent).toContain(board.rows[0]!.label);
 
-    type('mess');
-    expect(options().length).toBeGreaterThan(0);
-  });
-
-  it('scores a correct answer and stamps the cell', () => {
-    start(DAY_ONE);
-    answerCell(surface, 0);
+    const answer = poolFor(board.rows[0]!, board.cols[0]!)[0]!;
+    type(answer.name);
+    options().find((o) => o.textContent?.includes(answer.name))?.click();
 
     expect(document.querySelectorAll('#board .cell.solved')).toHaveLength(1);
-    expect(document.getElementById('left')?.textContent).toBe(String(guessesAt(1) - 1));
-    expect(Number(document.getElementById('score')?.textContent)).toBeGreaterThan(0);
+    expect(document.getElementById('left')?.textContent).toBe(String(STARTING_GUESSES - 1));
   });
 });
 
-describe('breaking through', () => {
-  beforeEach(() => {
-    mount();
-    vi.useFakeTimers();
+describe('rows opening', () => {
+  beforeEach(mount);
+
+  it('adds the next row once the first is full, and animates only that row', () => {
+    start(DAY_ONE);
+    fillRow(1);
+
+    expect(rowHeadings()).toEqual([board.rows[0]!.label, board.rows[1]!.label]);
+    expect(cells()).toHaveLength(board.cols.length * 2);
+
+    // Only the new row carries the opening animation. The row above holds
+    // answers the player is still reading and must not move again.
+    const opening = Array.from(document.querySelectorAll('#board .opening'));
+    expect(opening).toHaveLength(1 + board.cols.length);
+    expect(opening[0]?.textContent).toContain(board.rows[1]!.label);
   });
 
-  it('cracks the ice and drops to level 2 once the board is full', () => {
+  it('lights one more difficulty tick on each row down', () => {
     start(DAY_ONE);
-    const total = surface.rows.length * surface.cols.length;
-    for (let i = 0; i < total; i++) answerCell(surface, i);
+    fillRow(1);
 
-    // The break plays before the descent, so the finished board stays visible.
-    expect(document.getElementById('stage')?.className).toContain('breaking');
-    expect(document.body.dataset.depth).toBe('1');
-
-    vi.advanceTimersByTime(1000);
-
-    expect(document.body.dataset.depth).toBe('2');
-    expect(document.getElementById('left')?.textContent).toBe(String(guessesAt(2)));
-
-    const steps = Array.from(document.querySelectorAll('#gauge div'));
-    expect(steps[0]?.className).toContain('cleared');
-    expect(steps[1]?.className).toContain('here');
-
-    const level2 = buildBoard(1, 2);
-    expect(cells()).toHaveLength(level2.rows.length * level2.cols.length);
-    expect(document.querySelectorAll('#board .cell.solved')).toHaveLength(0);
+    const bars = Array.from(document.querySelectorAll('#board .rowhead .tier'));
+    expect(bars).toHaveLength(2);
+    expect(bars[0]?.querySelectorAll('i.on')).toHaveLength(1);
+    expect(bars[1]?.querySelectorAll('i.on')).toHaveLength(2);
   });
 
-  it('resumes mid-dive after a reload', () => {
+  it('keeps the animation to the one render that opened the row', () => {
     start(DAY_ONE);
-    const total = surface.rows.length * surface.cols.length;
-    for (let i = 0; i < total; i++) answerCell(surface, i);
-    vi.advanceTimersByTime(1000);
+    fillRow(1);
+    expect(document.querySelectorAll('#board .opening').length).toBeGreaterThan(0);
 
-    const level2 = buildBoard(1, 2);
-    answerCell(level2, 0);
+    // Any later guess re-renders; nothing should still be animating.
+    const row2 = board.rows[1]!;
+    const used = solvedNames();
+    const answer = poolFor(row2, board.cols[0]!).find(
+      (a) => !used.some((label) => label.includes(a.name)),
+    )!;
+    cells()[board.cols.length]?.click();
+    type(answer.name);
+    options().find((o) => o.textContent?.includes(answer.name))?.click();
 
-    // Remount without clearing localStorage, the way a page reload would.
+    expect(document.querySelectorAll('#board .opening')).toHaveLength(0);
+  });
+
+  it('resumes at the right row after a reload', () => {
+    start(DAY_ONE);
+    fillRow(1);
+    fillRow(2);
+
     document.body.innerHTML = BODY.replace(/<script[\s\S]*?<\/script>/g, '');
     start(DAY_ONE);
 
-    expect(document.body.dataset.depth).toBe('2');
-    expect(document.querySelectorAll('#board .cell.solved')).toHaveLength(1);
-    expect(document.getElementById('left')?.textContent).toBe(String(guessesAt(2) - 1));
-    expect(Array.from(document.querySelectorAll('#gauge div'))[0]?.className).toContain('cleared');
+    expect(rowHeadings()).toHaveLength(3);
+    expect(document.querySelectorAll('#board .cell.solved')).toHaveLength(4);
+    expect(document.querySelectorAll('#board .opening')).toHaveLength(0);
   });
 });
 
 describe('running out', () => {
   beforeEach(mount);
 
-  it('ends the dive and reveals answers once the guesses are gone', () => {
+  it('ends the board and shows how many names would have counted', () => {
     start(DAY_ONE);
 
-    const row = surface.rows[0]!;
-    const col = surface.cols[0]!;
-    const wrong = poolFor(surface.rows[0]!, surface.cols[1]!).find(
-      (a) => !(row.matches(a) && col.matches(a)),
-    )!;
+    const row = board.rows[0]!;
+    const col = board.cols[0]!;
+    const wrong = poolFor(row, board.cols[1]!).find((a) => !(row.matches(a) && col.matches(a)))!;
 
-    for (let i = 0; i < guessesAt(1); i++) {
+    for (let i = 0; i < STARTING_GUESSES; i++) {
       cells()[0]?.click();
       type(wrong.name);
       options().find((o) => o.textContent?.includes(wrong.name))?.click();
@@ -168,7 +183,6 @@ describe('running out', () => {
     expect(document.getElementById('left')?.textContent).toBe('0');
     expect(document.getElementById('result')?.className).toContain('on');
     expect(document.getElementById('verdict')?.textContent).toContain(`0/${MAX_DEPTH}`);
-    expect(document.querySelectorAll('#board .cell.dead').length).toBeGreaterThan(0);
-    expect(document.getElementById('share')?.textContent).toContain('Dive No.');
+    expect(document.querySelector('#reveal .count')?.textContent).toContain('would have counted');
   });
 });

@@ -1,5 +1,5 @@
 import type { DiveState } from '../engine/dive';
-import { missedCells, reachedName, totalScore, totalSolved } from '../engine/dive';
+import { missedCells, rowsCleared, totalScore, totalSolved } from '../engine/dive';
 import type { Board } from '../engine/grid';
 import { MAX_DEPTH } from '../engine/levels';
 import { buildShareText, copyText } from '../engine/share';
@@ -32,26 +32,31 @@ export function renderResult(board: Board, state: DiveState): void {
 
   const solved = totalSolved(state);
   const score = totalScore(state);
-  const average = solved > 0 ? score / solved : 0;
-  const verdict = verdictFor(state.deepestCleared, average);
+  const cleared = rowsCleared(state, board);
+  const verdict = verdictFor(cleared, solved > 0 ? score / solved : 0);
 
-  byId('verdict').textContent =
-    `${verdict.title} — ${state.deepestCleared}/${MAX_DEPTH} levels · ${score} pts`;
-  byId('blurb').textContent = `${verdict.blurb} Deepest ice broken: ${reachedName(state)}.`;
+  byId('verdict').textContent = `${verdict.title} — ${cleared}/${MAX_DEPTH} · ${score} pts`;
+  byId('blurb').textContent = verdict.blurb;
 
-  currentShareText = buildShareText(state);
+  currentShareText = buildShareText(board, state);
   byId('share').textContent = currentShareText;
 
   const reveal = byId('reveal');
   clear(reveal);
 
+  // How hard the cells actually were, in the only unit that means anything
+  // here: how many names would have counted.
   const missed = missedCells(board, state);
   if (missed.length > 0) {
-    reveal.append(el('h3', { text: 'Names you could have used' }));
+    reveal.append(el('h3', { text: 'What you left' }));
     for (const cell of missed) {
       const row = el('div');
       row.append(
-        el('em', { text: `${cell.rowLabel} × ${cell.colLabel}` }),
+        el('em', { text: `Row ${cell.depth} · ${cell.rowLabel} × ${cell.colLabel}` }),
+        el('span', {
+          className: 'count',
+          text: `${cell.poolSize} would have counted`,
+        }),
         cell.suggestions.map((a) => a.name).join(' · ') || 'No eligible athletes in the roster',
       );
       reveal.append(row);

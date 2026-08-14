@@ -109,34 +109,6 @@ h1 span {
   color: var(--ink);
 }
 
-/* ---- mode switch ---- */
-.modes {
-  display: flex;
-  gap: 6px;
-  margin: 10px 0 2px;
-}
-.modes button {
-  flex: 1;
-  font: 600 11px/1 var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 9px 8px;
-  cursor: pointer;
-  color: var(--ink-soft);
-  background: transparent;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-}
-.modes button[aria-pressed='true'] {
-  color: var(--paper);
-  background: var(--ink);
-  border-color: var(--ink);
-}
-.modes button:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
 /* ---- board ---- */
 .board {
   display: grid;
@@ -649,6 +621,17 @@ button.act-dark:focus-visible {
   display: block;
 }
 
+/* How hard the cell really was, in the only unit that means anything here. */
+.reveal .count {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+
 /* ---- toast ---- */
 .toast {
   position: fixed;
@@ -682,135 +665,51 @@ button.act-dark:focus-visible {
   }
 }
 
-/* ---- the dive: depth gauge, cooling palette, breaking ice ---- */
+/* ---- rows open one at a time ---- */
 
-/* Going deeper drains the warmth out of the page. The paper cools toward a
-   blue slate and the texture tightens, so the player can tell how deep they
-   are without reading the gauge. */
-body[data-depth='2'] { --paper: #e8d3cb; --paper-lite: #f6e6e0; --ink-soft: #6f5d58; }
-body[data-depth='3'] { --paper: #d9d5d8; --paper-lite: #ece9ec; --ink: #14131a; --ink-soft: #5f5d68; }
-body[data-depth='4'] { --paper: #c4ccd6; --paper-lite: #dde3ea; --ink: #101620; --ink-soft: #4e5a68; }
-body[data-depth='5'] { --paper: #a9b7c6; --paper-lite: #c6d2de; --ink: #0b1119; --ink-soft: #41505f; }
-body { transition: background-color 700ms ease; }
+/* The board grows downward. A new row fades and settles into place; nothing
+   else moves, because the rows above it are answers the player wants to keep
+   reading. */
+@keyframes open-row {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.board > .opening {
+  animation: open-row 380ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+.board > .opening:nth-child(3n) { animation-delay: 60ms; }
+.board > .opening:nth-child(3n + 1) { animation-delay: 30ms; }
 
-.gauge {
+/* Difficulty of the row, as a bar of six ticks filled to its level. It sits
+   under the label because the useful moment for it is before you guess. */
+.tier {
   display: flex;
-  gap: 4px;
-  margin: 12px 0 2px;
+  gap: 2px;
+  margin-top: 5px;
 }
-.gauge div {
-  flex: 1;
-  padding: 6px 4px 7px;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--ink-soft);
-  line-height: 1.35;
-  transition: background-color 300ms ease, color 300ms ease;
-}
-.gauge div b {
-  display: block;
-  font-size: 13px;
-  font-family: var(--display);
-  letter-spacing: 0;
-}
-.gauge .cleared {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
-}
-.gauge .here {
-  border-color: var(--ink);
-  border-width: 2px;
-  color: var(--ink);
-  background: var(--paper-lite);
-}
-
-.level-note {
-  margin: 10px 2px 0;
-  font-size: 12px;
-  color: var(--ink-soft);
-  font-style: italic;
-}
-
-/* The board sits on a sheet of ice. Clearing a level cracks it, the sheet
-   drops away, and the next level rises into place. */
-.stage {
-  position: relative;
-}
-.cracks {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  opacity: 0;
-}
-.cracks i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 140%;
+.tier i {
+  width: 5px;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--ink) 18%, var(--ink) 82%, transparent);
-  transform-origin: 0 50%;
-  transform: translate(-4%, 0) scaleX(0);
-  opacity: 0.85;
+  background: var(--ink);
+  opacity: 0.16;
 }
-.cracks i:nth-child(1) { transform: translate(-50%, 0) rotate(14deg) scaleX(0); }
-.cracks i:nth-child(2) { transform: translate(-50%, 0) rotate(-37deg) scaleX(0); }
-.cracks i:nth-child(3) { transform: translate(-50%, 0) rotate(71deg) scaleX(0); }
-.cracks i:nth-child(4) { transform: translate(-50%, 0) rotate(-104deg) scaleX(0); }
-.cracks i:nth-child(5) { transform: translate(-50%, 0) rotate(158deg) scaleX(0); }
-.cracks i:nth-child(6) { transform: translate(-50%, 0) rotate(-155deg) scaleX(0); }
-
-.stage.breaking .cracks { opacity: 1; }
-.stage.breaking .cracks i { animation: crack 420ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards; }
-.stage.breaking .cracks i:nth-child(2) { animation-delay: 60ms; }
-.stage.breaking .cracks i:nth-child(3) { animation-delay: 40ms; }
-.stage.breaking .cracks i:nth-child(4) { animation-delay: 110ms; }
-.stage.breaking .cracks i:nth-child(5) { animation-delay: 90ms; }
-.stage.breaking .cracks i:nth-child(6) { animation-delay: 150ms; }
-
-@keyframes crack {
-  from { transform: translate(-50%, 0) rotate(var(--a, 0deg)) scaleX(0); }
-  to   { transform: translate(-50%, 0) rotate(var(--a, 0deg)) scaleX(1); }
-}
-.stage.breaking .cracks i:nth-child(1) { --a: 14deg; }
-.stage.breaking .cracks i:nth-child(2) { --a: -37deg; }
-.stage.breaking .cracks i:nth-child(3) { --a: 71deg; }
-.stage.breaking .cracks i:nth-child(4) { --a: -104deg; }
-.stage.breaking .cracks i:nth-child(5) { --a: 158deg; }
-.stage.breaking .cracks i:nth-child(6) { --a: -155deg; }
-
-.stage.breaking .board {
-  animation: shudder 420ms ease-in-out 120ms both, plunge 380ms cubic-bezier(0.5, 0, 1, 0.5) 480ms both;
-}
-@keyframes shudder {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-3px); }
-  60% { transform: translateX(2px); }
-}
-@keyframes plunge {
-  to { transform: translateY(38px) scale(0.94); opacity: 0; }
+.tier i.on {
+  opacity: 0.7;
 }
 
-.stage.rising .board {
-  animation: rise 460ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-@keyframes rise {
-  from { transform: translateY(-26px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+.locked {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--rule);
+  margin-top: 3px;
+  padding-top: 9px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stage.breaking .cracks i,
-  .stage.breaking .board,
-  .stage.rising .board { animation: none; }
-  .stage.breaking .cracks { opacity: 1; }
-  .stage.breaking .cracks i { transform: translate(-50%, 0) rotate(var(--a, 0deg)) scaleX(1); }
-  body { transition: none; }
+  .board > .opening { animation: none; }
 }
