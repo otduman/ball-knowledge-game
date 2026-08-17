@@ -339,6 +339,82 @@ Duop Reath|Australia|2
 Sun Yue|China|2
 Mengke Bateer|China|1
 Sean Marks|New Zealand|1
-Satnam Singh|India|1
+# ---- Europe: NBA players by country ----
+Aleksej Pokusevski|Serbia|6
+Antonis Fotsis|Greece|4
+Constantin Popa|Romania|3
+Dan Gadzuric|Netherlands|8
+Darius Songaila|Lithuania|6
+Dzanan Musa|Bosnia and Herzegovina|6
+Francisco Elson|Netherlands|7
+Geert Hammink|Netherlands|3
+Georgi Glouchkov|Bulgaria|3
+Gheorghe Muresan|Romania|14
+Gordan Giricek|Croatia|6
+Gundars Vetra|Latvia|3
+Jake Tsakalidis|Greece|5
+Jiri Welsch|Czech Republic|7
+Jiri Zidek|Czech Republic|4
+John Amaechi|England|8
+Jonas Jerebko|Sweden|7
+Juan Carlos Navarro|Spain|9
+Kosta Koufos|Greece|9
+Marko Simonovic|Montenegro|3
+Martin Muursepp|Estonia|3
+Mirza Teletovic|Bosnia and Herzegovina|8
+Nemanja Bjelica|Serbia|10
+Nick Calathes|Greece|8
+Nicolo Melli|Italy|5
+Nikoloz Tskitishvili|Georgia|5
+Pero Antic|North Macedonia|5
+Petteri Koponen|Finland|3
+Predrag Danilovic|Serbia|8
+Rasho Nesterovic|Slovenia|8
+Sarunas Jasikevicius|Lithuania|14
+Sasha Kaun|Russia|4
+Stanislav Medvedenko|Ukraine|6|Slava Medvedenko
+Steve Bucknall|England|3
+Swen Nater|Netherlands|6
+Vitaly Potapenko|Ukraine|7
+Zoran Planinic|Croatia|4
+
+# ---- Americas, Africa, Asia and Oceania: NBA players by country ----
+Abdel Nader|Egypt|4
+Andrew Gaze|Australia|6
+Anthony Bennett|Canada|8
+Bill Wennington|Canada|8
+Buddy Hield|Bahamas|25
+Carl Herrera|Venezuela|4
+Carlos Arroyo|Puerto Rico|8
+Charlie Villanueva|Dominican Republic|8
+Cheikh Samb|Senegal|3
+Chris Boucher|Canada|10
+Christian Eyenga|DR Congo|3
+Daniel Santiago|Puerto Rico|3
+DeSagana Diop|Senegal|7
+Deandre Ayton|Bahamas|32
+Emmanuel Mudiay|DR Congo|9
+Felipe Lopez|Dominican Republic|4
+Ha Seung-jin|South Korea|4
+Joel Anthony|Canada|6
+Jose Juan Barea|Puerto Rico|14|JJ Barea
+Kai Jones|Bahamas|4
+Kirk Penney|New Zealand|3
+Luc Longley|Australia|14
+Luguentz Dort|Canada|14
+Mychal Thompson|Bahamas|10
+Obinna Ekezie|Nigeria|3
+Pablo Prigioni|Argentina|7
+Peter John Ramos|Puerto Rico|3
+Rick Fox|Canada|14
+Rolando Blackman|Panama|10
+Ruben Boumtje-Boumtje|Cameroon|3
+Samuel Dalembert|Haiti|10
+Skal Labissiere|Haiti|5
+Todd MacCulloch|Canada|5
+Walter Tavares|Cape Verde|4
+Wenyen Gabriel|South Sudan|5
+Yuta Tabuse|Japan|6
+
 `,
 );

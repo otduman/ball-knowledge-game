@@ -187,6 +187,30 @@ const BIRTH_YEAR_CANDIDATES: readonly Category[] = [
     matches: (athlete: Athlete) => athlete.birthYear === year,
   }));
 
+/**
+ * Pairs of consecutive years, alongside the exact years. Singles are narrow
+ * enough for the last two rows but too narrow for the middle of the board;
+ * pairs land squarely in the 12-40 window that rows 3 and 4 draw from. 35 of
+ * them field six a side.
+ *
+ * A pair strictly contains its two singles, so `buildBoard` rejects any row
+ * whose answers nest inside a row already on the board. Without that check a
+ * board could ask "Born in 1990" and "Born in 1990 or 1991" in the same breath.
+ */
+const BIRTH_YEAR_PAIR_CANDIDATES: readonly Category[] = [
+  ...new Set(ATHLETES.map((a) => a.birthYear).filter((y): y is number => y !== undefined)),
+]
+  .sort((a, b) => a - b)
+  .map((year) => ({
+    id: `era:years-${year}-${year + 1}`,
+    label: `Born in ${year} or ${year + 1}`,
+    axis: 'row' as const,
+    group: 'era' as const,
+    hint: `Born during ${year} or ${year + 1}`,
+    explain: false,
+    matches: (athlete: Athlete) => athlete.birthYear === year || athlete.birthYear === year + 1,
+  }));
+
 // ---- surname initial -----------------------------------------------------
 
 /**
@@ -224,6 +248,27 @@ const GIVEN_NAME_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvwx
     hint: `First name starts with ${letter.toUpperCase()}`,
     explain: false,
     matches: (athlete: Athlete) => (tokens(athlete.name)[0] ?? '').charAt(0) === letter,
+  }),
+);
+
+/**
+ * The letter a surname ENDS with. A different question from the letter it
+ * starts with — you have to picture the whole name rather than scan an
+ * alphabetical list — and unusually well suited to a two-sport board: 16 of the
+ * 26 field six a side and 9 are tight enough for the bottom rows.
+ */
+const SURNAME_END_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvwxyz'].map(
+  (letter) => ({
+    id: `letter:ends-${letter}`,
+    label: `Surname ends ${letter.toUpperCase()}`,
+    axis: 'row' as const,
+    group: 'letter' as const,
+    hint: `Family name ends with ${letter.toUpperCase()}`,
+    explain: false,
+    matches: (athlete: Athlete) => {
+      const parts = tokens(athlete.name);
+      return (parts[parts.length - 1] ?? '').endsWith(letter);
+    },
   }),
 );
 
@@ -455,11 +500,13 @@ const ROW_CANDIDATES: readonly Category[] = [
   ...COUNTRY_CANDIDATES,
   ...ERA_CATEGORIES,
   ...BIRTH_YEAR_CANDIDATES,
+  ...BIRTH_YEAR_PAIR_CANDIDATES,
   ...REACH_CATEGORIES,
   ...ORIGIN_CANDIDATES,
   ...NAME_CANDIDATES,
   ...LETTER_CANDIDATES,
   ...GIVEN_NAME_CANDIDATES,
+  ...SURNAME_END_CANDIDATES,
 ];
 
 const VIABLE_SPORTS: ReadonlyMap<string, ReadonlySet<SportId>> = new Map(

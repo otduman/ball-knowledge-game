@@ -318,10 +318,14 @@ SELECT ?item ?cit ?cityLabel ?capitalOf WHERE {
  * the sport check, "Sun Yue" resolves to a female volleyball player.
  */
 function choose(candidates: Candidate[], sport: SportId): Candidate | undefined {
-  const accepted = SPORT_QIDS[sport];
   return candidates
-    .map((c) => ({ c, match: [...c.sports].some((s) => accepted.includes(s)) ? 1 : 0 }))
+    .map((c) => ({ c, match: sportMatches(c, sport) ? 1 : 0 }))
     .sort((a, b) => b.match - a.match || b.c.sitelinks - a.c.sitelinks)[0]?.c;
+}
+
+function sportMatches(candidate: Candidate, sport: SportId): boolean {
+  const accepted = SPORT_QIDS[sport];
+  return [...candidate.sports].some((s) => accepted.includes(s));
 }
 
 /** Conflicting height statements: take the median rather than whichever arrived first. */
@@ -373,6 +377,7 @@ async function main(): Promise<void> {
   // facts for entities we have actually committed to.
   const chosen = new Map<string, Candidate>();
   const unmatched: string[] = [];
+  const wrongSport: string[] = [];
   for (const athlete of ATHLETES) {
     let pool = candidatesFor(athlete);
     if (pool.length === 0) {
@@ -386,6 +391,19 @@ async function main(): Promise<void> {
     }
     const best = choose(pool, athlete.sport);
     if (best) chosen.set(athlete.id, best);
+    // A name that resolves to a real person playing a different sport is the
+    // failure mode roster additions actually have: fabrications fail to resolve
+    // at all, but a footballer filed under the NBA resolves perfectly and is
+    // then wrong in every cell.
+    //
+    // ADVISORY, not a verdict. P641 is inconsistently populated — plenty of
+    // obvious footballers (Sergio Ramos, Rafael Marquez) carry a value outside
+    // SPORT_QIDS, and most F1 and UFC entries do too. Treat a name here as
+    // worth checking by hand, not as proof. It earned its keep by surfacing
+    // Satnam Singh, who was drafted but never played an NBA game.
+    if (best && best.sports.size > 0 && !sportMatches(best, athlete.sport)) {
+      wrongSport.push(`${athlete.name} (${athlete.sport})`);
+    }
   }
 
   console.log(`pass 3: extra facts for ${chosen.size} resolved entities`);
@@ -469,6 +487,9 @@ async function main(): Promise<void> {
   console.log(`with city    : ${cities} (${pct(cities)})`);
   console.log(`dual nationals: ${duals} (${pct(duals)})`);
   console.log(`unmatched    : ${unmatched.length}${unmatched.length ? ` — ${unmatched.slice(0, 10).join(', ')}` : ''}`);
+  console.log(
+    `wrong sport  : ${wrongSport.length}${wrongSport.length ? ` — ${wrongSport.slice(0, 20).join(', ')}` : ''}`,
+  );
   console.log(`wrote ${target}`);
 }
 

@@ -54,9 +54,8 @@ same player can drift between classifications.
 Here each athlete is a record, and categories are predicates over those records.
 A cell's pool is the intersection of two of them. This is what made tennis cheap
 to add — one roster file plus one line in `sports.ts`, no engine changes — and
-what makes a new axis a matter of adding categories. A whole *mode* is a row
-count, a column count, a list of sports and a difficulty budget: see
-[modes.ts](src/engine/modes.ts).
+what makes a new axis a matter of adding categories. A whole row of the board is
+a pool window plus a group cap: see [levels.ts](src/engine/levels.ts).
 
 Rosters live in [src/data/rosters/](src/data/rosters/) as pipe-delimited text:
 
@@ -69,18 +68,21 @@ Sadio Mane|Senegal|30|Sadio Mané
 cell. Rarity score is `100 - pop`, so an obvious pick is worth ~45 and a deep cut
 ~97. A malformed row throws at module load rather than disappearing silently.
 
-Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
-300 tennis, across 98 countries.
+Current database: **1885 athletes** — 730 football, 384 NBA, 264 UFC, 199 F1,
+300 tennis. Football and the NBA are the two columns; the other rosters are kept
+because the row generators are sport-agnostic and cost nothing to leave in.
 
 ### Rows
 
 | group | examples |
 |---|---|
 | Region | Africa, Eastern Europe, Asia & Oceania |
-| Country | Spain, Serbia, Croatia, Nigeria, Canada |
+| Country | 22 of them: Latvia, Lithuania, Slovenia, Greece, Ukraine, China... |
 | Born decade | Born pre-1970, Born 2000s |
 | **Born in an exact year** | Born in 1986, Born in 1994, Born in 2003 |
+| **Born in one of two years** | Born in 1982 or 1983 |
 | Surname / given-name initial | Surname E, Given name S |
+| **Surname ending letter** | Surname ends C, Surname ends T |
 | Wikipedia reach | Global name, Deep cut |
 | Origin | Dual national, Born in a capital, Shares a birth city |
 | Name shape | Known by one name, Shared surname, Double letter |
@@ -89,6 +91,15 @@ Current database: **1686 athletes** — 611 football, 312 NBA, 264 UFC, 199 F1,
 so classification is auditable in one place. Country, letter and year rows are
 **generated, not hand-listed**: the set grows with the roster and can never
 contain a heading no board can use.
+
+**Two families carry the tight rows, and neither needed new data.** Exact birth
+years and, alongside them, pairs of consecutive years — 35 of those field six a
+side, landing in the 12-40 window rows 3 and 4 draw from. A pair strictly
+contains its two singles, so the builder rejects any row whose answers nest
+inside a row already on the board; without that check a board could ask "Born in
+1990" and "Born in 1990 or 1991" in one breath. The third addition is the letter
+a surname *ends* with: a different question from the letter it starts with, and
+16 of the 26 are viable.
 
 **Exact birth years are what made the deep end work.** Depth needs rows that are
 narrow in *both* columns, and almost nothing is — regions, decades, origin
@@ -111,12 +122,12 @@ a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
 | row | window | candidates | tightest cell, median |
 |---|---|---|---|
-| 1 | 32-300 | 13 | 55 |
-| 2 | 24-110 | 17 | 31 |
-| 3 | 16-70 | 21 | 21 |
-| 4 | 11-40 | 28 | 14 |
-| 5 | 8-24 | 28 | 10 |
-| 6 | 6-17 | 24 | 9 |
+| 1 | 32-300 | 22 | 46 |
+| 2 | 24-110 | 37 | 31 |
+| 3 | 16-70 | 56 | 23 |
+| 4 | 11-40 | 64 | 15 |
+| 5 | 8-24 | 41 | 11 |
+| 6 | 6-17 | 50 | 8 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
@@ -142,22 +153,31 @@ distinct boards a year.
 npx vite-node scripts/enrich-roster.ts     # regenerate src/data/enrichment.json
 npx vite-node scripts/check-enrichment.ts  # spot-check known values
 npx vite-node scripts/row-viability.ts     # pool size for every row x column
-npx vite-node scripts/audit-categories.ts  # inventory, difficulty spread, reachability
-npx vite-node scripts/sample-boards.ts     # what the next few daily boards look like
+npx vite-node scripts/probe-dive.ts        # windows, airtime, sample boards, repeat horizon
+npx vite-node scripts/probe-rows.ts        # candidate row families needing no new data
+npx vite-node scripts/merge-roster.ts <batches.json> [--dry]  # validated roster merge
 npx vite-node scripts/list-regions.ts      # every region and its member countries
 npx vite-node scripts/list-unmatched.ts    # athletes with no enrichment data
 npx vite-node scripts/analyze-axes.ts      # country vs region row depth
 npx vite-node scripts/letters-and-balance.ts  # letter viability and sport balance
 npx vite-node scripts/probe-axes.ts        # data coverage for candidate new axes
 npx vite-node scripts/probe-gender.ts      # women per sport (see its caveat)
-npx vite-node scripts/probe-duel.ts        # duel rows, difficulty, airtime, repeat horizon
 ```
 
 `enrichment.json` is **generated — do not hand-edit it**. It is committed so
 builds stay offline and reproducible, and only needs regenerating when the
 roster grows. Current coverage: **99% matched, 99% with a birth year, 99% with
-gender, 99% with Wikipedia reach, 86% with height** — 14 athletes out of 1686
+gender, 99% with Wikipedia reach, 87% with height** — 20 athletes out of 1885
 remain unresolved and simply carry no decade or reach band.
+
+The run also reports a **sport mismatch** list: names whose Wikidata entity plays
+a different sport from the roster file they sit in. This is the failure mode a
+roster addition actually has — a fabricated name fails to resolve at all and
+lands in `unmatched`, but a footballer filed under the NBA resolves perfectly and
+is then wrong in every cell. Treat it as advisory: P641 is inconsistently
+populated, so obvious footballers (Sergio Ramos, Rafael Marquez) and most F1 and
+UFC entries appear there too. It earned its keep by surfacing Satnam Singh, who
+was drafted but never played an NBA game and has been removed.
 
 It runs in two passes. Pass 1 bulk-matches exact labels over SPARQL, which is
 fast and resolves most of the roster. Pass 2 sends the stragglers through the

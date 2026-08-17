@@ -2,7 +2,7 @@ import type { Category, CategoryGroup } from './categories';
 import { colsForSports, rowsForSports } from './categories';
 import type { Level } from './levels';
 import { COLUMN_SPORTS, LEVELS, MAX_ROWS_PER_GROUP, levelAt } from './levels';
-import { poolFor } from './pools';
+import { categoryPool, poolFor } from './pools';
 import { hashString, mulberry32, shuffle } from './rng';
 
 export interface Board {
@@ -44,6 +44,19 @@ export function rowsForLevel(level: Level): Category[] {
 }
 
 /**
+ * Whether one row's answers sit entirely inside another's. "Born in 1990" and
+ * "Born in 1990 or 1991" are two headings asking one question, and a board
+ * showing both is giving the second answer away with the first.
+ */
+function nested(a: Category, b: Category): boolean {
+  const left = categoryPool(a);
+  const right = categoryPool(b);
+  const [small, large] = left.length <= right.length ? [left, right] : [right, left];
+  const ids = new Set(large.map((athlete) => athlete.id));
+  return small.every((athlete) => ids.has(athlete.id));
+}
+
+/**
  * Builds the day's board. Deterministic: the same number always yields the same
  * rows in the same order.
  *
@@ -71,14 +84,16 @@ export function buildBoard(number: number, variant = 0): Board {
     const harder = (row: Category) => rowFloor(row, cols) < ceiling;
     const fresh = (row: Category) => !usedIds.has(row.id);
     const spare = (row: Category) => (perGroup.get(row.group) ?? 0) < MAX_ROWS_PER_GROUP;
+    const distinct = (row: Category) => rows.every((chosen) => !nested(row, chosen));
 
     const pick =
-      candidates.find((row) => fresh(row) && spare(row) && harder(row)) ??
+      candidates.find((row) => fresh(row) && distinct(row) && spare(row) && harder(row)) ??
       // The group cap is a preference, not a rule: a board that is short a row
-      // is worse than one with a third surname letter.
-      candidates.find((row) => fresh(row) && harder(row)) ??
-      candidates.find((row) => fresh(row) && spare(row)) ??
-      candidates.find(fresh);
+      // is worse than one with a third surname letter. Nesting is not a
+      // preference — two rows where one contains the other are one question.
+      candidates.find((row) => fresh(row) && distinct(row) && harder(row)) ??
+      candidates.find((row) => fresh(row) && distinct(row) && spare(row)) ??
+      candidates.find((row) => fresh(row) && distinct(row));
 
     if (!pick) {
       throw new Error(`No row available for level ${level.depth} with the current roster.`);

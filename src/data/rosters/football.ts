@@ -738,5 +738,31 @@ Taffarel|Brazil|4|Claudio Taffarel; Cláudio Taffarel
 Teofilo Cubillas|Peru|3|Teófilo Cubillas; Nene Cubillas
 Tomas Rincon|Venezuela|2|Tomás Rincón; El General
 
+# ---- Footballers from basketball-strong countries, to unlock country rows ----
+Aleksandrs Kolinko|Latvia|5
+Andrius Skerla|Lithuania|4
+Arvydas Novikovas|Lithuania|4
+Edgaras Jankauskas|Lithuania|8
+Eric Maxim Choupo-Moting|Cameroon|20
+Fan Zhiyi|China|5
+Fedor Cernych|Lithuania|4
+Geremi|Cameroon|10|Geremi Njitap
+Igors Stepanovs|Latvia|6
+Janis Ikaunieks|Latvia|3
+Kaspars Gorkss|Latvia|5
+Li Tie|China|5
+Mantas Kuklys|Lithuania|3
+Marians Pahars|Latvia|10
+Maris Verpakovskis|Latvia|7
+Marius Stankevicius|Lithuania|5
+Milivoje Novakovic|Slovenia|7
+Patrick Mboma|Cameroon|12
+Rigobert Song|Cameroon|14
+Roberts Uldrikis|Latvia|3
+Sun Jihai|China|7
+Tomas Danilevicius|Lithuania|6
+Vitalijs Astafjevs|Latvia|5
+Vykintas Slivka|Lithuania|3
+
 `,
 );
