@@ -10,6 +10,8 @@ const GROUP_LABEL: Record<Category['group'], string> = {
   reach: 'How widely they are known',
   origin: 'Where they come from',
   name: 'Their name',
+  build: 'How tall they stand',
+  blend: 'Two things at once — both must be true',
 };
 
 /**

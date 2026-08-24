@@ -17,7 +17,7 @@ import {
   STARTING_GUESSES,
   TOTAL_CELLS,
 } from '../src/engine/levels';
-import { poolFor } from '../src/engine/pools';
+import { categoryPool, poolFor } from '../src/engine/pools';
 
 const DAY = 7;
 
@@ -127,6 +127,47 @@ describe('the board', () => {
   it('is deterministic', () => {
     expect(buildBoard(42).rows.map((r) => r.id)).toEqual(buildBoard(42).rows.map((r) => r.id));
     expect(buildBoard(42, 1).rows.map((r) => r.id)).not.toEqual(buildBoard(42).rows.map((r) => r.id));
+  });
+
+  it('never asks one question twice', () => {
+    // A blend is a strict subset of both its parents, so "Africa" sitting above
+    // "Africa - 1990s" would hand the second answer over with the first. The
+    // same trap exists between a year and the pair that contains it.
+    for (let day = 1; day <= 200; day++) {
+      const rows = buildBoard(day).rows;
+      for (let i = 0; i < rows.length; i++) {
+        for (let j = i + 1; j < rows.length; j++) {
+          const a = categoryPool(rows[i]!).map((x) => x.id);
+          const b = new Set(categoryPool(rows[j]!).map((x) => x.id));
+          const [small, large] = a.length <= b.size ? [a, b] : [[...b], new Set(a)];
+          const contained = small.every((id) => (large as Set<string>).has(id));
+          expect(contained, `day ${day}: ${rows[i]!.label} vs ${rows[j]!.label}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('actually reaches for the newer row families', () => {
+    // Blends and name shapes exist to break up a board that was two-thirds
+    // dates and letters. A change that silently strands them should fail here.
+    const groups = new Set<string>();
+    for (let day = 1; day <= 200; day++) {
+      for (const row of buildBoard(day).rows) groups.add(row.group);
+    }
+    expect(groups).toContain('blend');
+    expect(groups).toContain('name');
+
+    const slots = new Map<string, number>();
+    let total = 0;
+    for (let day = 1; day <= 200; day++) {
+      for (const row of buildBoard(day).rows) {
+        slots.set(row.group, (slots.get(row.group) ?? 0) + 1);
+        total++;
+      }
+    }
+    // Dates and letters together used to be 64% of every row slot.
+    const dateAndLetter = (slots.get('era') ?? 0) + (slots.get('letter') ?? 0);
+    expect(dateAndLetter / total).toBeLessThan(0.62);
   });
 });
 

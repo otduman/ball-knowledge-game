@@ -22,7 +22,7 @@ score; rarity is the tiebreaker.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 87 tests
+npm test           # 89 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
@@ -76,16 +76,19 @@ because the row generators are sport-agnostic and cost nothing to leave in.
 
 | group | examples |
 |---|---|
+| **Blend — two conditions at once** | Eastern Europe · 1980s, Africa · Dual national, 1990s · Capital-born |
 | Region | Africa, Eastern Europe, Asia & Oceania |
 | Country | 22 of them: Latvia, Lithuania, Slovenia, Greece, Ukraine, China... |
 | Born decade | Born pre-1970, Born 2000s |
-| **Born in an exact year** | Born in 1986, Born in 1994, Born in 2003 |
-| **Born in one of two years** | Born in 1982 or 1983 |
+| Born in an exact year / pair | Born in 1986, Born in 1982 or 1983 |
+| **Born in a tournament year** | World Cup year, Olympic year |
 | Surname / given-name initial | Surname E, Given name S |
-| **Surname ending letter** | Surname ends C, Surname ends T |
+| Surname ending letter | Surname ends C, Surname ends T |
+| **Surname contains a letter** | Surname has Z, Surname has J, Surname has W |
+| **Height** | 190-194cm, 193-195cm |
 | Wikipedia reach | Global name, Deep cut |
 | Origin | Dual national, Born in a capital, Shares a birth city |
-| Name shape | Known by one name, Shared surname, Double letter |
+| Name shape | Known by one name, Three-part name, Surname bookends |
 
 `country -> region` resolves through one table in [regions.ts](src/data/regions.ts),
 so classification is auditable in one place. Country, letter and year rows are
@@ -110,10 +113,33 @@ six or more in both sports and 21 of those sit entirely under 30 answers. It
 needed no new data at all. Years share the `era` group with the decade bands so
 that "Born 1980s" can never appear beside "Born in 1985".
 
+**Blends are what stopped the board being a spelling test.** Dates and letters
+were 64% of every row slot — the two least interesting things you can ask about
+an athlete. A blend asks two conditions at once ("from Eastern Europe *and* born
+in the eighties"), which is a different and harder act than either alone: 35 are
+viable and 27 fit a window, spread across all six rows. Only pairings that read
+as one question are generated — a region and an era is a person you can picture,
+a surname letter and a citizenship count is two questions stapled together. A
+blend is a strict subset of both its parents, so the same nesting check that
+separates a year from its pair keeps "Africa" off a board showing "Africa ·
+1990s". They carry their own group, so the per-group cap stops a board becoming
+nothing but compounds. Dates and letters are now 57%.
+
+Two smaller additions came out of the same measurement. **Tournament years** —
+World Cups fall on years ≡ 2 mod 4 and summer Olympics on ≡ 0 mod 4, so the two
+rows are disjoint by construction — are broad on both sides, which is what row
+one wants and what almost nothing else offers: it went from 22 candidates to 33.
+And the letter a surname *contains*, for the eight uncommon letters only; the
+common ones are viable but useless, since "Surname has A" is 438 footballers.
+
 Things measured and rejected: **birth cities as rows** (not one city has six
 players in both football and the NBA), **surname length** (only one band is
-narrow enough), **cross-sport clubs**, **jersey numbers**, **US college**,
-**handedness**, **height**. Reasons are in the git history and the probe scripts.
+narrow enough), **fame from the `pop` field** (unanswerable at the boundary —
+a player cannot judge whether someone is famous *enough*), **cross-sport
+clubs**, **jersey numbers**, **US college**, **handedness**. Height was
+rejected once and revived: no *threshold* is playable, because "under 185cm" is
+446 footballers and 8 NBA players and fits no window, but the narrow band where
+the two distributions overlap works and gives two rows.
 
 ### Rows open one at a time
 
@@ -122,12 +148,12 @@ a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
 | row | window | candidates | tightest cell, median |
 |---|---|---|---|
-| 1 | 32-300 | 22 | 46 |
-| 2 | 24-110 | 37 | 31 |
-| 3 | 16-70 | 56 | 23 |
-| 4 | 11-40 | 64 | 15 |
-| 5 | 8-24 | 41 | 11 |
-| 6 | 6-17 | 50 | 8 |
+| 1 | 32-300 | 33 | 46 |
+| 2 | 24-110 | 53 | 29 |
+| 3 | 16-70 | 74 | 20 |
+| 4 | 11-40 | 85 | 13 |
+| 5 | 8-24 | 56 | 10 |
+| 6 | 6-17 | 62 | 6 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
@@ -154,7 +180,8 @@ npx vite-node scripts/enrich-roster.ts     # regenerate src/data/enrichment.json
 npx vite-node scripts/check-enrichment.ts  # spot-check known values
 npx vite-node scripts/row-viability.ts     # pool size for every row x column
 npx vite-node scripts/probe-dive.ts        # windows, airtime, sample boards, repeat horizon
-npx vite-node scripts/probe-rows.ts        # candidate row families needing no new data
+npx vite-node scripts/category-stats.ts    # what rows exist, per group, and how often they air
+npx vite-node scripts/sample-boards.ts     # read a few boards the way a player meets them
 npx vite-node scripts/merge-roster.ts <batches.json> [--dry]  # validated roster merge
 npx vite-node scripts/list-regions.ts      # every region and its member countries
 npx vite-node scripts/list-unmatched.ts    # athletes with no enrichment data

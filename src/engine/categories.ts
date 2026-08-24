@@ -19,7 +19,9 @@ export type CategoryGroup =
   | 'letter'
   | 'reach'
   | 'origin'
-  | 'name';
+  | 'name'
+  | 'build'
+  | 'blend';
 
 export interface Category {
   id: string;
@@ -77,10 +79,16 @@ function rosterCountriesIn(regionId: string): string[] {
  * but nothing else is useless to the first and perfect for the second.
  */
 function viableSportsFor(matches: (a: Athlete) => boolean): ReadonlySet<SportId> {
+  // One pass rather than one per sport. With the compound rows the catalogue is
+  // large enough that five full scans per candidate is the slowest thing that
+  // happens at module load.
+  const counts = new Map<SportId, number>();
+  for (const athlete of ATHLETES) {
+    if (matches(athlete)) counts.set(athlete.sport, (counts.get(athlete.sport) ?? 0) + 1);
+  }
   const out = new Set<SportId>();
   for (const sport of SPORTS) {
-    const count = ATHLETES.filter((a) => a.sport === sport.id && matches(a)).length;
-    if (count >= MIN_POOL) out.add(sport.id);
+    if ((counts.get(sport.id) ?? 0) >= MIN_POOL) out.add(sport.id);
   }
   return out;
 }
@@ -211,6 +219,79 @@ const BIRTH_YEAR_PAIR_CANDIDATES: readonly Category[] = [
     matches: (athlete: Athlete) => athlete.birthYear === year || athlete.birthYear === year + 1,
   }));
 
+// ---- tournament years ----------------------------------------------------
+
+/**
+ * Row one was the thinnest window on the board — 22 candidates against 50 for
+ * row six — because it wants rows that are broad in both columns, and almost
+ * everything broad in football is thin in the NBA. A quarter of the roster was
+ * born in a World Cup year, which is broad on both sides and, unlike "Born
+ * 1990s", carries some flavour.
+ *
+ * World Cups fall on years congruent to 2 mod 4 and summer Olympics on 0 mod 4,
+ * so the two rows are disjoint by construction and never give each other away.
+ */
+const WORLD_CUP_YEARS: ReadonlySet<number> = new Set([
+  1930, 1934, 1938, 1950, 1954, 1958, 1962, 1966, 1970, 1974, 1978, 1982, 1986, 1990, 1994,
+  1998, 2002, 2006, 2010, 2014, 2018, 2022,
+]);
+
+const OLYMPIC_YEARS: ReadonlySet<number> = new Set([
+  1936, 1948, 1952, 1956, 1960, 1964, 1968, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000,
+  2004, 2008, 2012, 2016, 2021,
+]);
+
+const TOURNAMENT_CANDIDATES: readonly Category[] = [
+  {
+    id: 'era:world-cup-year',
+    label: 'World Cup year',
+    hint: 'Born in a year the football World Cup was played',
+    years: WORLD_CUP_YEARS,
+  },
+  {
+    id: 'era:olympic-year',
+    label: 'Olympic year',
+    hint: 'Born in a year the summer Olympics were held',
+    years: OLYMPIC_YEARS,
+  },
+].map((row) => ({
+  id: row.id,
+  label: row.label,
+  axis: 'row' as const,
+  group: 'era' as const,
+  hint: row.hint,
+  explain: true,
+  shortHint: row.hint,
+  matches: (athlete: Athlete) =>
+    athlete.birthYear !== undefined && row.years.has(athlete.birthYear),
+}));
+
+// ---- build ---------------------------------------------------------------
+
+/**
+ * The one physical attribute where the two columns disagree violently, which is
+ * what makes it worth asking. It also means almost no threshold is playable:
+ * "under 185cm" is 446 footballers and 8 NBA players, and a row that lopsided
+ * fits no window. Only the narrow band where the two distributions overlap
+ * works, which is why there are two of these rather than a ladder.
+ */
+const HEIGHT_BANDS: Array<{ id: string; label: string; min: number; max: number }> = [
+  { id: '190-194', label: '190-194cm', min: 190, max: 195 },
+  { id: '193-195', label: '193-195cm', min: 193, max: 196 },
+];
+
+const BUILD_CANDIDATES: readonly Category[] = HEIGHT_BANDS.map((band) => ({
+  id: `build:${band.id}`,
+  label: band.label,
+  axis: 'row' as const,
+  group: 'build' as const,
+  hint: `Stands between ${band.min}cm and ${band.max - 1}cm tall`,
+  explain: true,
+  shortHint: `${band.min}-${band.max - 1}cm tall`,
+  matches: (athlete: Athlete) =>
+    athlete.heightCm !== undefined && athlete.heightCm >= band.min && athlete.heightCm < band.max,
+}));
+
 // ---- surname initial -----------------------------------------------------
 
 /**
@@ -271,6 +352,30 @@ const SURNAME_END_CANDIDATES: readonly Category[] = [...'abcdefghijklmnopqrstuvw
     },
   }),
 );
+
+/**
+ * The letter a surname CONTAINS, anywhere. A different act from the initial:
+ * you cannot scan an alphabetical list, you have to spell the name out.
+ *
+ * Only the uncommon letters are here. The common ones are viable but useless —
+ * "Surname has A" is 438 footballers, broad enough for row one and nothing
+ * else — whereas J, W, Z and F are narrow enough to carry the middle of the
+ * board and are the letters a player actually has to hunt for.
+ */
+const CONTAINS_LETTERS = 'bfjpvwyz';
+
+const SURNAME_CONTAINS_CANDIDATES: readonly Category[] = [...CONTAINS_LETTERS].map((letter) => ({
+  id: `letter:has-${letter}`,
+  label: `Surname has ${letter.toUpperCase()}`,
+  axis: 'row' as const,
+  group: 'letter' as const,
+  hint: `Family name contains the letter ${letter.toUpperCase()} anywhere`,
+  explain: false,
+  matches: (athlete: Athlete) => {
+    const parts = tokens(athlete.name);
+    return (parts[parts.length - 1] ?? '').includes(letter);
+  },
+}));
 
 // ---- Wikipedia reach -----------------------------------------------------
 
@@ -428,6 +533,55 @@ const NAME_ROWS: Array<{ id: string; label: string; hint: string; matches: (a: A
       return /(.)\1/.test(last);
     },
   },
+  {
+    id: 'long-surname',
+    label: 'Long surname',
+    hint: 'Family name is ten letters or more',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      return parts.length > 1 && (parts[parts.length - 1] ?? '').length >= 10;
+    },
+  },
+  {
+    id: 'three-part',
+    label: 'Three-part name',
+    hint: 'Goes by three or more names',
+    matches: (a) => tokens(a.name).length >= 3,
+  },
+  {
+    id: 'hyphenated',
+    label: 'Hyphenated name',
+    hint: 'Name contains a hyphen',
+    matches: (a) => a.name.includes('-'),
+  },
+  {
+    id: 'bookends',
+    label: 'Surname bookends',
+    hint: 'Family name starts and ends with the same letter',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      const last = parts[parts.length - 1] ?? '';
+      return last.length > 2 && last.charAt(0) === last.charAt(last.length - 1);
+    },
+  },
+  {
+    id: 'even-names',
+    label: 'Names same length',
+    hint: 'First name and family name have the same number of letters',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      return parts.length > 1 && (parts[0] ?? '').length === (parts[parts.length - 1] ?? '').length;
+    },
+  },
+  {
+    id: 'vowel-surname',
+    label: 'Surname starts on a vowel',
+    hint: 'Family name begins with A, E, I, O or U',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      return /^[aeiou]/.test(parts[parts.length - 1] ?? '');
+    },
+  },
 ];
 
 /**
@@ -462,6 +616,97 @@ const NAME_CANDIDATES: readonly Category[] = NAME_ROWS.map((row) => ({
 export const NAME_CATEGORIES: readonly Category[] = NAME_CANDIDATES.filter((c) =>
   isViableRow(c.matches),
 );
+
+// ---- blends --------------------------------------------------------------
+
+/**
+ * Two conditions at once. Every other row family asks one thing; these ask a
+ * player to hold a place and a period together, which is a different and
+ * harder act than either alone.
+ *
+ * They are deliberately narrow in their pairings. A region and an era read as
+ * one question — "an Eastern European born in the eighties" is a person you can
+ * picture. A surname letter and a citizenship count read as two questions
+ * stapled together, so those combinations are not generated.
+ *
+ * Nesting does the safety work: a blend is a strict subset of both its parents,
+ * so `buildBoard` will never put "Africa" or "Born 1990s" on the same board as
+ * "Africa - 1990s". The blends have their own group so the per-group cap keeps
+ * a board from becoming nothing but compounds.
+ */
+const BLEND_ERAS: Array<{ id: string; label: string; min: number; max: number }> = [
+  { id: 'pre80', label: 'Pre-1980', min: 0, max: 1980 },
+  { id: '80s', label: '1980s', min: 1980, max: 1990 },
+  { id: '90s', label: '1990s', min: 1990, max: 2000 },
+  { id: '00s', label: '2000s', min: 2000, max: Infinity },
+];
+
+const bornIn = (era: (typeof BLEND_ERAS)[number]) => (a: Athlete) =>
+  a.birthYear !== undefined && a.birthYear >= era.min && a.birthYear < era.max;
+
+const eraPhrase = (era: (typeof BLEND_ERAS)[number]) =>
+  era.max === Infinity
+    ? `born in ${era.min} or later`
+    : era.min === 0
+      ? `born before ${era.max}`
+      : `born between ${era.min} and ${era.max - 1}`;
+
+const blend = (
+  id: string,
+  label: string,
+  hint: string,
+  matches: (a: Athlete) => boolean,
+): Category => ({
+  id: `blend:${id}`,
+  label,
+  axis: 'row',
+  group: 'blend',
+  hint,
+  explain: true,
+  shortHint: hint,
+  matches,
+});
+
+const BLEND_CANDIDATES: readonly Category[] = [
+  // Place and period. The richest pairing: 22 of these field six a side.
+  ...REGIONS.flatMap((region) =>
+    BLEND_ERAS.map((era) =>
+      blend(
+        `${region.id}-${era.id}`,
+        `${region.label} · ${era.label}`,
+        `From ${region.label}, ${eraPhrase(era)}`,
+        (a) => a.region === region.id && bornIn(era)(a),
+      ),
+    ),
+  ),
+  // Place and passport.
+  ...REGIONS.map((region) =>
+    blend(
+      `${region.id}-dual`,
+      `${region.label} · Dual national`,
+      `From ${region.label}, and holds more than one citizenship`,
+      (a) => a.region === region.id && a.citizenships !== undefined && a.citizenships > 1,
+    ),
+  ),
+  // Period and passport.
+  ...BLEND_ERAS.map((era) =>
+    blend(
+      `${era.id}-dual`,
+      `${era.label} · Dual national`,
+      `Holds more than one citizenship, ${eraPhrase(era)}`,
+      (a) => bornIn(era)(a) && a.citizenships !== undefined && a.citizenships > 1,
+    ),
+  ),
+  // Period and birthplace.
+  ...BLEND_ERAS.map((era) =>
+    blend(
+      `${era.id}-capital`,
+      `${era.label} · Capital-born`,
+      `Born in a country's capital city, ${eraPhrase(era)}`,
+      (a) => bornIn(era)(a) && a.bornInCapital === true,
+    ),
+  ),
+];
 
 // ---- sports (columns) ----------------------------------------------------
 
@@ -501,12 +746,16 @@ const ROW_CANDIDATES: readonly Category[] = [
   ...ERA_CATEGORIES,
   ...BIRTH_YEAR_CANDIDATES,
   ...BIRTH_YEAR_PAIR_CANDIDATES,
+  ...TOURNAMENT_CANDIDATES,
   ...REACH_CATEGORIES,
   ...ORIGIN_CANDIDATES,
   ...NAME_CANDIDATES,
+  ...BUILD_CANDIDATES,
   ...LETTER_CANDIDATES,
   ...GIVEN_NAME_CANDIDATES,
   ...SURNAME_END_CANDIDATES,
+  ...SURNAME_CONTAINS_CANDIDATES,
+  ...BLEND_CANDIDATES,
 ];
 
 const VIABLE_SPORTS: ReadonlyMap<string, ReadonlySet<SportId>> = new Map(
