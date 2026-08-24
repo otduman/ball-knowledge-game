@@ -164,25 +164,60 @@ describe('rows opening', () => {
   });
 });
 
+/** Burns every guess on a name that cannot fit, ending the board at 0/6. */
+function exhaustGuesses(): void {
+  const row = board.rows[0]!;
+  const col = board.cols[0]!;
+  const wrong = poolFor(row, board.cols[1]!).find((a) => !(row.matches(a) && col.matches(a)))!;
+
+  for (let i = 0; i < STARTING_GUESSES; i++) {
+    cells()[0]?.click();
+    type(wrong.name);
+    options().find((o) => o.textContent?.includes(wrong.name))?.click();
+  }
+}
+
 describe('running out', () => {
   beforeEach(mount);
 
   it('ends the board and shows how many names would have counted', () => {
     start(DAY_ONE);
-
-    const row = board.rows[0]!;
-    const col = board.cols[0]!;
-    const wrong = poolFor(row, board.cols[1]!).find((a) => !(row.matches(a) && col.matches(a)))!;
-
-    for (let i = 0; i < STARTING_GUESSES; i++) {
-      cells()[0]?.click();
-      type(wrong.name);
-      options().find((o) => o.textContent?.includes(wrong.name))?.click();
-    }
+    exhaustGuesses();
 
     expect(document.getElementById('left')?.textContent).toBe('0');
     expect(document.getElementById('result')?.className).toContain('on');
     expect(document.getElementById('verdict')?.textContent).toContain(`0/${MAX_DEPTH}`);
     expect(document.querySelector('#reveal .count')?.textContent).toContain('would have counted');
+  });
+});
+
+describe('the record', () => {
+  beforeEach(mount);
+
+  it('stays out of the way until a board has been finished', () => {
+    start(DAY_ONE);
+    expect(document.getElementById('streak')?.textContent).toBe('');
+    expect(document.getElementById('record')?.children).toHaveLength(0);
+  });
+
+  it('counts a finished board and shows the streak', () => {
+    start(DAY_ONE);
+    exhaustGuesses();
+
+    expect(document.getElementById('streak')?.textContent).toBe('Streak 1');
+    const tally = document.querySelectorAll('#record .tally b');
+    expect(Array.from(tally).map((n) => n.textContent)).toEqual(['1', '1', '1']);
+  });
+
+  it('does not count the same board twice across a reload', () => {
+    start(DAY_ONE);
+    exhaustGuesses();
+
+    document.body.innerHTML = BODY.replace(/<script[\s\S]*?<\/script>/g, '');
+    start(DAY_ONE);
+
+    // Played stays at one: the day is upserted, not appended.
+    expect(document.getElementById('streak')?.textContent).toBe('Streak 1');
+    expect(document.querySelectorAll('#record .tally b')[2]?.textContent).toBe('1');
   });
 });

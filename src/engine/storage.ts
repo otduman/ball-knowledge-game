@@ -7,13 +7,13 @@ import { MAX_DEPTH, STARTING_GUESSES } from './levels';
 // v4 stores a board that grows row by row. Earlier saves describe games that no
 // longer exist, so the prefix change discards them.
 const VERSION = 4;
-const PREFIX = `bk:v${VERSION}`;
+export const PREFIX = `bk:v${VERSION}`;
 
 function storageKey(day: number, variant: number): string {
   return `${PREFIX}:${day}:${variant}`;
 }
 
-function storage(): Storage | null {
+export function storage(): Storage | null {
   try {
     // Private-mode Safari and locked-down embeddings throw on access.
     const probe = '__bk_probe__';

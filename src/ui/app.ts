@@ -2,6 +2,7 @@ import { categoryById } from '../engine/categories';
 import type { DiveState } from '../engine/dive';
 import { applyGuess, boardFor, createDive, totalScore, usedAthleteIds } from '../engine/dive';
 import type { Board } from '../engine/grid';
+import { loadHistory, streaksFor } from '../engine/history';
 import { MAX_DEPTH } from '../engine/levels';
 import { puzzleNumberFor } from '../engine/rng';
 import { loadDive, saveDive } from '../engine/storage';
@@ -57,7 +58,16 @@ export class App {
     );
     this.openingRow = 0;
 
+    // Results record the day before the streak is read, so finishing a board
+    // updates the masthead in the same paint that shows the verdict.
     renderResult(this.board, this.state);
+    this.renderStreak();
+  }
+
+  private renderStreak(): void {
+    const { current } = streaksFor(loadHistory(), this.day);
+    const slot = byId('streak');
+    slot.textContent = current > 0 ? `Streak ${current}` : '';
   }
 
   private openCell(rowId: string, colId: string): void {

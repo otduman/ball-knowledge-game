@@ -84,9 +84,11 @@ function openCellNode(rowLabel: string, colLabel: string, onOpen: () => void): H
 }
 
 /**
- * The row's difficulty, as ticks filled to its depth. It belongs on the row and
- * not in the cells: both cells of a row share a window, and one mark reads at a
- * glance where two sets of dots did not.
+ * The row's difficulty, as ticks filled to its depth plus the same count in
+ * figures. It belongs on the row and not in the cells: both cells of a row
+ * share a window, and one mark reads at a glance where two sets of dots did
+ * not. The figures are there because six faint ticks did not read either —
+ * row 1 and row 6 were indistinguishable without counting pixels.
  */
 function tierNode(depth: number): HTMLElement {
   const bar = el('span', {
@@ -94,6 +96,7 @@ function tierNode(depth: number): HTMLElement {
     attrs: { 'aria-label': `Difficulty ${depth} of ${MAX_DEPTH}` },
   });
   for (let i = 1; i <= MAX_DEPTH; i++) bar.append(el('i', { className: i <= depth ? 'on' : '' }));
+  bar.append(el('b', { text: `${depth}/${MAX_DEPTH}`, attrs: { 'aria-hidden': 'true' } }));
   return bar;
 }
 
@@ -132,7 +135,7 @@ function headingNode(
 export function renderBoard(container: HTMLElement, view: BoardView, handlers: BoardHandlers): void {
   const { board, solved, openRows, openingRow, revealed } = view;
   clear(container);
-  container.style.gridTemplateColumns = `1.32fr repeat(${board.cols.length}, 1fr)`;
+  container.style.gridTemplateColumns = `1.2fr repeat(${board.cols.length}, 1fr)`;
 
   const corner = el('div', { className: 'corner' });
   corner.append('Name one', el('br'), 'athlete per', el('br'), 'cell');

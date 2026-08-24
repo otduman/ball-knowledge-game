@@ -1,14 +1,60 @@
 :root {
+  color-scheme: light dark;
+
   --paper: #f2cdbf;
   --paper-lite: #fbe7df;
+  --card: #ffffff;
   --ink: #16110f;
   --ink-soft: #7a625a;
   --hit: #0f5e48;
   --miss: #a32b14;
   --rule: rgba(22, 17, 15, 0.22);
+
+  /* Derived tints kept as variables so the dark palette is a single block
+     rather than a hunt through every rule that hardcoded an ink alpha. */
+  --dots: rgba(22, 17, 15, 0.045);
+  --faint: rgba(22, 17, 15, 0.3);
+  --dotted: rgba(22, 17, 15, 0.45);
+  --miss-wash: rgba(163, 43, 20, 0.09);
+  --scrim: rgba(22, 17, 15, 0.55);
+
+  /* The bottom bar and its button invert against the page in light mode. In
+     dark mode inverting again would put a floodlight at the bottom of the
+     screen, so they become raised surfaces instead. */
+  --bar-bg: #16110f;
+  --bar-fg: #f2cdbf;
+  --act-bg: #f2cdbf;
+  --act-fg: #16110f;
+  --act-edge: transparent;
+
   --display: 'Archivo Black', Haettenschweiler, Impact, sans-serif;
   --body: 'Archivo', system-ui, -apple-system, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16130f;
+    --paper-lite: #211c17;
+    --card: #2c251d;
+    --ink: #f4e7dd;
+    --ink-soft: #a3907f;
+    --hit: #63c99d;
+    --miss: #f08163;
+    --rule: rgba(244, 231, 221, 0.2);
+
+    --dots: rgba(244, 231, 221, 0.035);
+    --faint: rgba(244, 231, 221, 0.28);
+    --dotted: rgba(244, 231, 221, 0.4);
+    --miss-wash: rgba(240, 129, 99, 0.13);
+    --scrim: rgba(0, 0, 0, 0.68);
+
+    --bar-bg: #241e18;
+    --bar-fg: #f4e7dd;
+    --act-bg: #3a3027;
+    --act-fg: #f4e7dd;
+    --act-edge: rgba(244, 231, 221, 0.22);
+  }
 }
 
 * {
@@ -26,10 +72,10 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--body);
-  padding: 18px 14px 92px;
+  padding: 0 14px 92px;
   max-width: 620px;
   margin: 0 auto;
-  background-image: radial-gradient(rgba(22, 17, 15, 0.045) 1px, transparent 1px);
+  background-image: radial-gradient(var(--dots) 1px, transparent 1px);
   background-size: 3px 3px;
 }
 
@@ -49,8 +95,8 @@ body {
   position: absolute;
   left: -9999px;
   top: 0;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
   padding: 10px 14px;
   font-family: var(--mono);
   font-size: 11px;
@@ -61,7 +107,18 @@ body {
   top: 8px;
 }
 
-/* ---- masthead ---- */
+/* ---- masthead ----
+
+   A collapse-on-scroll masthead was tried here and removed. It freed 112px,
+   which was more scroll room than the page had; the page then fit the viewport,
+   the browser clamped the scroll back to zero, and the header expanded again —
+   an oscillation that pinned the page at the top. Shorter cells already put the
+   whole board on one screen, so the title is simply smaller instead. */
+.topbar {
+  padding-top: 14px;
+  margin-bottom: 14px;
+}
+
 .masthead {
   border-bottom: 3px solid var(--ink);
   padding-bottom: 8px;
@@ -69,8 +126,8 @@ body {
 
 h1 {
   font-family: var(--display);
-  font-size: clamp(34px, 12.5vw, 66px);
-  line-height: 0.82;
+  font-size: clamp(28px, 10vw, 52px);
+  line-height: 0.84;
   letter-spacing: -0.035em;
   margin: 0;
   text-transform: uppercase;
@@ -90,6 +147,14 @@ h1 span {
   color: var(--ink-soft);
   margin: 7px 0 0;
 }
+.dek b {
+  color: var(--ink);
+  font-weight: 700;
+}
+/* No streak yet is not worth a line of chrome. */
+#streak:empty {
+  display: none;
+}
 
 .strap {
   font-family: var(--mono);
@@ -99,7 +164,6 @@ h1 span {
   color: var(--ink-soft);
   border-bottom: 1px solid var(--rule);
   padding: 7px 0;
-  margin-bottom: 14px;
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -112,10 +176,9 @@ h1 span {
 /* ---- board ---- */
 .board {
   display: grid;
-  /* Row gutter is wider than a cell: attribute rows ("Born pre-1970") need
-     noticeably more room than the old region-only labels did. The column count
-     is set from the grid, since the duel board is two columns wide. */
-  grid-template-columns: 1.32fr repeat(3, 1fr);
+  /* Overridden per board from the grid's column count; this is the pre-script
+     default so the first paint is not a single stacked column. */
+  grid-template-columns: 1.2fr repeat(2, 1fr);
   gap: 5px;
 }
 
@@ -165,7 +228,7 @@ h1 span {
 }
 button.head .txt,
 button.rowhead .lbl {
-  border-bottom: 1.5px dotted rgba(22, 17, 15, 0.45);
+  border-bottom: 1.5px dotted var(--dotted);
   padding-bottom: 1px;
 }
 
@@ -211,9 +274,13 @@ button.rowhead .lbl {
   letter-spacing: -0.02em;
 }
 
+/* A cell holds a two-line name and a score stamp — about 60px of content. It
+   was square because the 3x3 grid made squares small; at two columns a square
+   is a 106px box a third full, and six of them do not fit a phone. Height is
+   set from the content instead, so the whole board lands on one screen. */
 .cell {
   position: relative;
-  aspect-ratio: 1 / 1;
+  min-height: clamp(70px, 18vw, 88px);
   background: var(--paper-lite);
   border: 1px solid var(--rule);
   border-radius: 2px;
@@ -238,29 +305,11 @@ button.rowhead .lbl {
 .cell .plus {
   font-family: var(--mono);
   font-size: 18px;
-  color: rgba(22, 17, 15, 0.3);
-}
-
-.depth {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  display: flex;
-  gap: 2px;
-}
-.depth i {
-  width: 3.5px;
-  height: 3.5px;
-  border-radius: 99px;
-  background: var(--ink);
-  opacity: 0.2;
-}
-.depth i.on {
-  opacity: 0.75;
+  color: var(--faint);
 }
 
 .cell.solved {
-  background: #fff;
+  background: var(--card);
 }
 .cell.solved .nm {
   font-weight: 700;
@@ -289,8 +338,8 @@ button.rowhead .lbl {
     45deg,
     var(--paper-lite),
     var(--paper-lite) 6px,
-    rgba(163, 43, 20, 0.09) 6px,
-    rgba(163, 43, 20, 0.09) 12px
+    var(--miss-wash) 6px,
+    var(--miss-wash) 12px
   );
 }
 .cell.dead .miss-nm {
@@ -334,8 +383,11 @@ button.rowhead .lbl {
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  /* Invisible in light mode, where the bar is already ink on paper; in dark
+     mode it is the only thing separating one dark surface from another. */
+  border-top: 1px solid var(--act-edge);
   padding: 11px 16px calc(11px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
@@ -366,21 +418,22 @@ button.act {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  background: var(--paper);
-  color: var(--ink);
-  border: 0;
+  background: var(--act-bg);
+  color: var(--act-fg);
+  border: 1px solid var(--act-edge);
   border-radius: 2px;
   padding: 9px 13px;
   font-weight: 700;
   cursor: pointer;
 }
 button.act:focus-visible {
-  outline: 3px solid var(--paper);
+  outline: 3px solid var(--act-bg);
   outline-offset: 2px;
 }
 button.act-dark {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  border-color: var(--act-edge);
   margin-top: 10px;
 }
 button.act-dark:focus-visible {
@@ -392,7 +445,7 @@ button.act-dark:focus-visible {
 .scrim {
   position: fixed;
   inset: 0;
-  background: rgba(22, 17, 15, 0.55);
+  background: var(--scrim);
   z-index: 20;
 }
 .scrim[hidden] {
@@ -454,7 +507,7 @@ button.act-dark:focus-visible {
   padding: 12px;
   border: 2px solid var(--ink);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   font-family: var(--body);
   font-size: 16px;
   font-weight: 600;
@@ -632,19 +685,84 @@ button.act-dark:focus-visible {
   margin-bottom: 2px;
 }
 
+/* ---- streak and history ---- */
+.record {
+  margin-top: 14px;
+  border-top: 1px solid var(--rule);
+  padding-top: 10px;
+}
+.record .tally {
+  display: flex;
+  gap: 18px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.record .tally span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.record .tally b {
+  font-size: 19px;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+/* One column per recent board, as tall as it got. Reading your own trend is
+   the whole point of keeping a history, and a bar chart says it without a
+   second screen. */
+.past {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  height: 42px;
+}
+.past .day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  height: 100%;
+}
+.past .day u {
+  display: block;
+  width: 100%;
+  background: var(--ink);
+  opacity: 0.24;
+  border-radius: 1px;
+  text-decoration: none;
+}
+.past .day.today u {
+  opacity: 0.85;
+}
+.past .day i {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
 /* ---- toast ---- */
 .toast {
   position: fixed;
   left: 50%;
   bottom: 78px;
   transform: translate(-50%, 8px);
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 9px 14px;
+  border: 1px solid var(--act-edge);
   border-radius: 2px;
   opacity: 0;
   pointer-events: none;
@@ -656,13 +774,6 @@ button.act-dark:focus-visible {
 .toast.on {
   opacity: 1;
   transform: translate(-50%, 0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
 }
 
 /* ---- rows open one at a time ---- */
@@ -680,21 +791,32 @@ button.act-dark:focus-visible {
 .board > .opening:nth-child(3n) { animation-delay: 60ms; }
 .board > .opening:nth-child(3n + 1) { animation-delay: 30ms; }
 
-/* Difficulty of the row, as a bar of six ticks filled to its level. It sits
-   under the label because the useful moment for it is before you guess. */
+/* Difficulty of the row, as ticks filled to its level plus the count in
+   figures. The ticks alone were 5x2px at a fifth opacity — the information was
+   on screen and unreadable, which is the same as not being there. */
 .tier {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 3px;
   margin-top: 5px;
 }
 .tier i {
-  width: 5px;
-  height: 2px;
+  width: 7px;
+  height: 3px;
+  border-radius: 1px;
   background: var(--ink);
-  opacity: 0.16;
+  opacity: 0.18;
 }
 .tier i.on {
-  opacity: 0.7;
+  opacity: 1;
+}
+.tier b {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-left: 3px;
 }
 
 .locked {
@@ -711,5 +833,8 @@ button.act-dark:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board > .opening { animation: none; }
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

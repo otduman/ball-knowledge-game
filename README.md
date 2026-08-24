@@ -22,12 +22,12 @@ score; rarity is the tiebreaker.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 69 tests
+npm test           # 87 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
 The build output is a static site with no backend — the whole game, database
-included, is ~65 KB gzipped.
+included, is ~76 KB gzipped.
 
 ### Why Vite 6 and not 8
 

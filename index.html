@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A daily football and basketball board. Fill a row to open the next, harder one.">
-<meta name="theme-color" content="#F2CDBF">
+<meta name="theme-color" content="#F2CDBF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16130F" media="(prefers-color-scheme: dark)">
 <title>Ball Knowledge — the daily board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,17 +15,20 @@
 
 <a class="skip" href="#board">Skip to the board</a>
 
-<header class="masthead">
-  <h1><span>Ball</span><span>Knowledge</span></h1>
-  <div class="dek">
-    <span id="issue">No. 001</span>
-    <span>Football × NBA</span>
-  </div>
-</header>
+<div class="topbar">
+  <header class="masthead">
+    <h1><span>Ball</span><span>Knowledge</span></h1>
+    <div class="dek">
+      <span id="issue">No. 001</span>
+      <span id="streak"></span>
+      <span>Football × NBA</span>
+    </div>
+  </header>
 
-<div class="strap">
-  <span id="strap-rules">Fill a row to open the next.</span>
-  <span>Tap a heading for <b>what counts</b></span>
+  <div class="strap">
+    <span id="strap-rules">Fill a row to open the next.</span>
+    <span class="strap-hint">Tap a heading for <b>what counts</b></span>
+  </div>
 </div>
 
 <main>
@@ -35,6 +39,7 @@
     <p id="blurb"></p>
     <pre class="share" id="share"></pre>
     <button class="act act-dark" id="copy" type="button">Copy result</button>
+    <div class="record" id="record"></div>
     <div class="reveal" id="reveal"></div>
   </section>
 </main>
