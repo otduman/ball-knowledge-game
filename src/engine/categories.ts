@@ -448,6 +448,12 @@ const ORIGIN_ROWS: Array<{ id: string; label: string; hint: string; matches: (a:
     hint: 'Born in the same city as another athlete in this game',
     matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
   },
+  {
+    id: 'triple',
+    label: 'Triple national',
+    hint: 'Holds citizenship of three or more countries',
+    matches: (a) => a.citizenships !== undefined && a.citizenships > 2,
+  },
 ];
 
 /**
@@ -582,6 +588,27 @@ const NAME_ROWS: Array<{ id: string; label: string; hint: string; matches: (a: A
       return /^[aeiou]/.test(parts[parts.length - 1] ?? '');
     },
   },
+  {
+    id: 'short-full',
+    label: 'Short full name',
+    hint: 'Whole name is fewer than eleven letters',
+    matches: (a) => tokens(a.name).join('').length < 11,
+  },
+  {
+    id: 'long-full',
+    label: 'Long full name',
+    hint: 'Whole name is twenty letters or more',
+    matches: (a) => tokens(a.name).join('').length >= 20,
+  },
+  {
+    id: 'short-given',
+    label: 'Short given name',
+    hint: 'First name is three letters or fewer',
+    matches: (a) => {
+      const parts = tokens(a.name);
+      return parts.length > 1 && (parts[0] ?? '').length <= 3;
+    },
+  },
 ];
 
 /**
@@ -651,61 +678,84 @@ const eraPhrase = (era: (typeof BLEND_ERAS)[number]) =>
       ? `born before ${era.max}`
       : `born between ${era.min} and ${era.max - 1}`;
 
-const blend = (
-  id: string,
-  label: string,
-  hint: string,
-  matches: (a: Athlete) => boolean,
-): Category => ({
-  id: `blend:${id}`,
-  label,
-  axis: 'row',
-  group: 'blend',
-  hint,
-  explain: true,
-  shortHint: hint,
-  matches,
-});
+/**
+ * A half of a blend. `label` is the compact form that goes in the heading;
+ * `phrase` is the clause that goes in the sentence explaining it.
+ */
+interface Trait {
+  id: string;
+  label: string;
+  phrase: string;
+  matches: (a: Athlete) => boolean;
+}
 
+const PLACES: readonly Trait[] = REGIONS.map((region) => ({
+  id: region.id,
+  label: region.label,
+  phrase: `from ${region.label}`,
+  matches: (a: Athlete) => a.region === region.id,
+}));
+
+const PERIODS: readonly Trait[] = BLEND_ERAS.map((era) => ({
+  id: era.id,
+  label: era.label,
+  phrase: eraPhrase(era),
+  matches: bornIn(era),
+}));
+
+/**
+ * Biographical marks only. "Short surname" measures as viable against several
+ * of these, and is left out anyway: a spelling trait bolted to a citizenship
+ * count is the two-questions-stapled-together case this family exists to avoid.
+ */
+const MARKS: readonly Trait[] = [
+  {
+    id: 'dual',
+    label: 'Dual national',
+    phrase: 'holding more than one citizenship',
+    matches: (a) => a.citizenships !== undefined && a.citizenships > 1,
+  },
+  {
+    id: 'capital',
+    label: 'Capital-born',
+    phrase: "born in a country's capital city",
+    matches: (a) => a.bornInCapital === true,
+  },
+  {
+    id: 'city',
+    label: 'Shared birth city',
+    phrase: 'born in the same city as another athlete in this game',
+    matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
+  },
+];
+
+function blendOf(left: Trait, right: Trait): Category {
+  return {
+    id: `blend:${left.id}-${right.id}`,
+    label: `${left.label} · ${right.label}`,
+    axis: 'row',
+    group: 'blend',
+    hint: `An athlete ${left.phrase}, ${right.phrase}`,
+    explain: true,
+    shortHint: `${left.phrase}, ${right.phrase}`,
+    matches: (a) => left.matches(a) && right.matches(a),
+  };
+}
+
+/**
+ * Which halves may be combined, declared rather than hand-looped so adding a
+ * trait cannot silently mint a pairing nobody looked at.
+ *
+ * `capital` and `city` are never blended with each other: a capital is a large
+ * city, so almost everyone born in one also shares a birth city, and the
+ * compound would be a near-duplicate of `capital` alone.
+ */
 const BLEND_CANDIDATES: readonly Category[] = [
-  // Place and period. The richest pairing: 22 of these field six a side.
-  ...REGIONS.flatMap((region) =>
-    BLEND_ERAS.map((era) =>
-      blend(
-        `${region.id}-${era.id}`,
-        `${region.label} · ${era.label}`,
-        `From ${region.label}, ${eraPhrase(era)}`,
-        (a) => a.region === region.id && bornIn(era)(a),
-      ),
-    ),
-  ),
-  // Place and passport.
-  ...REGIONS.map((region) =>
-    blend(
-      `${region.id}-dual`,
-      `${region.label} · Dual national`,
-      `From ${region.label}, and holds more than one citizenship`,
-      (a) => a.region === region.id && a.citizenships !== undefined && a.citizenships > 1,
-    ),
-  ),
-  // Period and passport.
-  ...BLEND_ERAS.map((era) =>
-    blend(
-      `${era.id}-dual`,
-      `${era.label} · Dual national`,
-      `Holds more than one citizenship, ${eraPhrase(era)}`,
-      (a) => bornIn(era)(a) && a.citizenships !== undefined && a.citizenships > 1,
-    ),
-  ),
-  // Period and birthplace.
-  ...BLEND_ERAS.map((era) =>
-    blend(
-      `${era.id}-capital`,
-      `${era.label} · Capital-born`,
-      `Born in a country's capital city, ${eraPhrase(era)}`,
-      (a) => bornIn(era)(a) && a.bornInCapital === true,
-    ),
-  ),
+  ...PLACES.flatMap((place) => PERIODS.map((period) => blendOf(place, period))),
+  ...PLACES.flatMap((place) => MARKS.map((mark) => blendOf(place, mark))),
+  ...PERIODS.flatMap((period) => MARKS.map((mark) => blendOf(period, mark))),
+  blendOf(MARKS[0] as Trait, MARKS[1] as Trait),
+  blendOf(MARKS[0] as Trait, MARKS[2] as Trait),
 ];
 
 // ---- sports (columns) ----------------------------------------------------
