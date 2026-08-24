@@ -21,7 +21,8 @@ export type CategoryGroup =
   | 'origin'
   | 'name'
   | 'build'
-  | 'blend';
+  | 'blend'
+  | 'role';
 
 export interface Category {
   id: string;
@@ -290,6 +291,83 @@ const BUILD_CANDIDATES: readonly Category[] = HEIGHT_BANDS.map((band) => ({
   shortHint: `${band.min}-${band.max - 1}cm tall`,
   matches: (athlete: Athlete) =>
     athlete.heightCm !== undefined && athlete.heightCm >= band.min && athlete.heightCm < band.max,
+}));
+
+// ---- role ----------------------------------------------------------------
+
+/**
+ * The only row family where the two columns rhyme rather than merely coexist.
+ *
+ * Wikidata's P413 is ~98% populated in both sports, but the two use entirely
+ * separate entities — football's forward is Q280658, the NBA's small forward is
+ * Q308879 — so there is no shared value to key on and the bridge has to be
+ * drawn by hand. That hand-drawn part is the point: a midfielder and a point
+ * guard are the same idea in two different games, and no other row can ask
+ * that.
+ *
+ * Positions are a set, not a value. Players hold several (LeBron carries four),
+ * so a role matches if any of them lands in the bucket.
+ */
+const ROLES: Array<{
+  id: string;
+  label: string;
+  /** Compact form for compound headings. */
+  short: string;
+  /** Verb clause, for the sentence in a compound hint. */
+  phrase: string;
+  /** The cross-sport bridge in as few words as fit under a heading. */
+  gloss: string;
+  any: string[];
+}> = [
+  {
+    id: 'attack',
+    label: 'Plays up front',
+    short: 'Up front',
+    phrase: 'playing up front',
+    gloss: 'forward or striker / small or power forward',
+    any: ['forward', 'centre-forward', 'striker', 'second striker', 'inside forward', 'winger',
+      'small forward', 'power forward', 'stretch four'],
+  },
+  {
+    id: 'playmake',
+    label: 'Runs the play',
+    short: 'Runs the play',
+    phrase: 'running the play',
+    gloss: 'midfielder / point guard',
+    any: ['midfielder', 'attacking midfielder', 'central midfielder', 'defensive midfielder',
+      'wide midfielder', 'point guard', 'combo guard', 'point forward'],
+  },
+  {
+    id: 'back',
+    label: 'Holds the back',
+    short: 'At the back',
+    phrase: 'playing at the back',
+    gloss: 'keeper or defender / center',
+    any: ['goalkeeper', 'defender', 'centre-back', 'center back', 'full-back', 'left-back',
+      'right-back', 'sweeper', 'wing-back', 'center'],
+  },
+];
+
+const ROLE_HINT: Record<string, string> = {
+  attack: 'A forward, striker or winger in football; a small or power forward in the NBA',
+  playmake: 'A midfielder in football; a point guard in the NBA — the player the game runs through',
+  back: 'A goalkeeper or defender in football; a center in the NBA',
+};
+
+const roleMatcher = (any: string[]) => {
+  const wanted = new Set(any);
+  return (athlete: Athlete) => (athlete.positions ?? []).some((p) => wanted.has(p));
+};
+
+const ROLE_CANDIDATES: readonly Category[] = ROLES.map((role) => ({
+  id: `role:${role.id}`,
+  label: role.label,
+  axis: 'row' as const,
+  group: 'role' as const,
+  hint: ROLE_HINT[role.id] as string,
+  explain: true,
+  shortHint: role.gloss,
+  matches: roleMatcher(role.any),
 }));
 
 // ---- surname initial -----------------------------------------------------
@@ -685,7 +763,13 @@ const eraPhrase = (era: (typeof BLEND_ERAS)[number]) =>
 interface Trait {
   id: string;
   label: string;
+  /** Clause for the full sentence in `hint`. */
   phrase: string;
+  /**
+   * Few enough words to sit under a heading. Compound hints are two clauses
+   * long, and two full phrases ran to a paragraph in a 132px gutter.
+   */
+  gloss: string;
   matches: (a: Athlete) => boolean;
 }
 
@@ -693,6 +777,7 @@ const PLACES: readonly Trait[] = REGIONS.map((region) => ({
   id: region.id,
   label: region.label,
   phrase: `from ${region.label}`,
+  gloss: condense(rosterCountriesIn(region.id), 3),
   matches: (a: Athlete) => a.region === region.id,
 }));
 
@@ -700,6 +785,7 @@ const PERIODS: readonly Trait[] = BLEND_ERAS.map((era) => ({
   id: era.id,
   label: era.label,
   phrase: eraPhrase(era),
+  gloss: eraPhrase(era),
   matches: bornIn(era),
 }));
 
@@ -708,23 +794,39 @@ const PERIODS: readonly Trait[] = BLEND_ERAS.map((era) => ({
  * of these, and is left out anyway: a spelling trait bolted to a citizenship
  * count is the two-questions-stapled-together case this family exists to avoid.
  */
+/**
+ * Roles blend as well as stand alone. On their own all three are broad enough
+ * for row one and nothing else — 279 forwards in football, 166 in the NBA — so
+ * blending is what carries them down the board.
+ */
+const ROLE_TRAITS: readonly Trait[] = ROLES.map((role) => ({
+  id: role.id,
+  label: role.short,
+  phrase: role.phrase,
+  gloss: role.gloss,
+  matches: roleMatcher(role.any),
+}));
+
 const MARKS: readonly Trait[] = [
   {
     id: 'dual',
     label: 'Dual national',
     phrase: 'holding more than one citizenship',
+    gloss: 'more than one citizenship',
     matches: (a) => a.citizenships !== undefined && a.citizenships > 1,
   },
   {
     id: 'capital',
     label: 'Capital-born',
     phrase: "born in a country's capital city",
+    gloss: "born in a country's capital",
     matches: (a) => a.bornInCapital === true,
   },
   {
     id: 'city',
     label: 'Shared birth city',
     phrase: 'born in the same city as another athlete in this game',
+    gloss: 'birth city shared with another athlete',
     matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
   },
 ];
@@ -737,7 +839,7 @@ function blendOf(left: Trait, right: Trait): Category {
     group: 'blend',
     hint: `An athlete ${left.phrase}, ${right.phrase}`,
     explain: true,
-    shortHint: `${left.phrase}, ${right.phrase}`,
+    shortHint: `${left.gloss} · ${right.gloss}`,
     matches: (a) => left.matches(a) && right.matches(a),
   };
 }
@@ -754,6 +856,9 @@ const BLEND_CANDIDATES: readonly Category[] = [
   ...PLACES.flatMap((place) => PERIODS.map((period) => blendOf(place, period))),
   ...PLACES.flatMap((place) => MARKS.map((mark) => blendOf(place, mark))),
   ...PERIODS.flatMap((period) => MARKS.map((mark) => blendOf(period, mark))),
+  ...ROLE_TRAITS.flatMap((role) => PLACES.map((place) => blendOf(role, place))),
+  ...ROLE_TRAITS.flatMap((role) => PERIODS.map((period) => blendOf(role, period))),
+  ...ROLE_TRAITS.flatMap((role) => MARKS.map((mark) => blendOf(role, mark))),
   blendOf(MARKS[0] as Trait, MARKS[1] as Trait),
   blendOf(MARKS[0] as Trait, MARKS[2] as Trait),
 ];
@@ -801,6 +906,7 @@ const ROW_CANDIDATES: readonly Category[] = [
   ...ORIGIN_CANDIDATES,
   ...NAME_CANDIDATES,
   ...BUILD_CANDIDATES,
+  ...ROLE_CANDIDATES,
   ...LETTER_CANDIDATES,
   ...GIVEN_NAME_CANDIDATES,
   ...SURNAME_END_CANDIDATES,

@@ -14,6 +14,7 @@ type Entry = [
   number | null, // citizenships
   string | null, // birthCity
   0 | 1, // bornInCapital
+  string | null, // positions, slash-separated
 ];
 
 // TypeScript widens JSON array literals, losing the tuple arity, so the cast
@@ -29,13 +30,15 @@ export interface Enrichment {
   citizenships?: number;
   birthCity?: string;
   bornInCapital?: boolean;
+  positions?: string[];
 }
 
 export function enrichmentFor(athleteId: string): Enrichment {
   const entry = ENTRIES[athleteId];
   if (!entry) return {};
 
-  const [heightCm, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital] = entry;
+  const [heightCm, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital, positions] =
+    entry;
   const out: Enrichment = {};
   if (typeof heightCm === 'number') out.heightCm = heightCm;
   if (typeof birthYear === 'number') out.birthYear = birthYear;
@@ -44,6 +47,7 @@ export function enrichmentFor(athleteId: string): Enrichment {
   if (typeof citizenships === 'number') out.citizenships = citizenships;
   if (typeof birthCity === 'string') out.birthCity = birthCity;
   if (bornInCapital === 1) out.bornInCapital = true;
+  if (typeof positions === 'string' && positions.length > 0) out.positions = positions.split('/');
   return out;
 }
 

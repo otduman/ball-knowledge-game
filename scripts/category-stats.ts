@@ -30,6 +30,7 @@ const GROUP_LABEL: Record<string, string> = {
   name: 'Name shape',
   build: 'Height',
   blend: 'Blend (two conditions at once)',
+  role: 'Role (position, across both sports)',
 };
 
 const byGroup = new Map<string, typeof rows>();

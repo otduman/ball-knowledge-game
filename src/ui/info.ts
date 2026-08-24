@@ -12,6 +12,7 @@ const GROUP_LABEL: Record<Category['group'], string> = {
   name: 'Their name',
   build: 'How tall they stand',
   blend: 'Two things at once — both must be true',
+  role: 'Where they play',
 };
 
 /**

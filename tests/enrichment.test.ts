@@ -13,20 +13,21 @@ import {
   REACH_CATEGORIES,
   ROW_CATEGORIES,
 } from '../src/engine/categories';
-import { MIN_ROW_POOL } from '../src/engine/categories';
+import { MIN_ROW_POOL, categoryById } from '../src/engine/categories';
 import { poolFor } from '../src/engine/pools';
 
 const entries = raw.entries as unknown as Record<string, unknown>;
 
 describe('enrichment data', () => {
-  it('stores every entry as a 7-field tuple of the right types', () => {
+  it('stores every entry as an 8-field tuple of the right types', () => {
     const malformed: string[] = [];
     for (const [id, value] of Object.entries(entries)) {
-      if (!Array.isArray(value) || value.length !== 7) {
+      if (!Array.isArray(value) || value.length !== 8) {
         malformed.push(`${id}: bad shape`);
         continue;
       }
-      const [height, year, gender, reach, citizenships, city, capital] = value as unknown[];
+      const [height, year, gender, reach, citizenships, city, capital, positions] =
+        value as unknown[];
       if (height !== null && typeof height !== 'number') malformed.push(`${id}: height`);
       if (year !== null && typeof year !== 'number') malformed.push(`${id}: year`);
       if (gender !== null && gender !== 'f' && gender !== 'm') malformed.push(`${id}: gender`);
@@ -36,6 +37,9 @@ describe('enrichment data', () => {
       }
       if (city !== null && typeof city !== 'string') malformed.push(`${id}: city`);
       if (capital !== 0 && capital !== 1) malformed.push(`${id}: capital`);
+      if (positions !== null && (typeof positions !== 'string' || positions.length === 0)) {
+        malformed.push(`${id}: positions`);
+      }
     }
     expect(malformed).toEqual([]);
   });
@@ -65,6 +69,55 @@ describe('enrichment data', () => {
   it('only references athletes that exist in the roster', () => {
     const ids = new Set(ATHLETES.map((a) => a.id));
     expect(Object.keys(entries).filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it('keeps positions inside their own sport', () => {
+    // P413 is not confined to the sport an athlete is filed under: Michael
+    // Jordan carries "outfielder" from his baseball detour. Anything outside
+    // the fetch vocabulary is dropped, so no NBA player should read as a
+    // goalkeeper and no footballer as a point guard.
+    const BASKETBALL = new Set(['point guard', 'shooting guard', 'small forward',
+      'power forward', 'center', 'guard', 'swingman', 'point forward']);
+    // "Winger" is deliberately absent: basketball uses it for a wing player, so
+    // it is genuinely shared rather than a football value leaking across.
+    const FOOTBALL_ONLY = new Set(['goalkeeper', 'centre-back', 'full-back', 'defender',
+      'midfielder', 'attacking midfielder', 'defensive midfielder', 'striker']);
+
+    const strays: string[] = [];
+    for (const a of ATHLETES) {
+      for (const p of a.positions ?? []) {
+        if (a.sport === 'nba' && FOOTBALL_ONLY.has(p)) strays.push(`${a.name}=${p}`);
+        if (a.sport === 'football' && BASKETBALL.has(p)) strays.push(`${a.name}=${p}`);
+      }
+    }
+    expect(strays).toEqual([]);
+  });
+
+  it('sorts the obvious players into the right role', () => {
+    // The roles are what the board asks, so they are what gets asserted --
+    // Wikidata calls van Dijk a "defender" some days and a "centre-back"
+    // others, and the row does not care which.
+    const roleOf = (id: string) => categoryById(`role:${id}`)!;
+    const isRole = (name: string, id: string) => {
+      const athlete = ATHLETES.find((a) => a.name === name);
+      return athlete !== undefined && roleOf(id).matches(athlete);
+    };
+    expect(isRole('Gianluigi Buffon', 'back')).toBe(true);
+    expect(isRole('Virgil van Dijk', 'back')).toBe(true);
+    expect(isRole('Stephen Curry', 'playmake')).toBe(true);
+    expect(isRole('Erling Haaland', 'attack')).toBe(true);
+    // A keeper is not a forward, whatever else changes upstream.
+    expect(isRole('Gianluigi Buffon', 'attack')).toBe(false);
+  });
+
+  it('covers enough of both columns for the role rows to hold up', () => {
+    // Roles are the first row family built on a fetched field that is not
+    // near-universal, so the floor is asserted rather than assumed.
+    for (const sport of ['football', 'nba'] as const) {
+      const pool = ATHLETES.filter((a) => a.sport === sport);
+      const placed = pool.filter((a) => a.positions !== undefined).length;
+      expect(placed / pool.length, sport).toBeGreaterThan(0.85);
+    }
   });
 
   it('keeps heights and birth years physically plausible', () => {

@@ -22,12 +22,12 @@ score; rarity is the tiebreaker.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 89 tests
+npm test           # 92 tests
 npm run build      # typecheck, then bundle to dist/
 ```
 
 The build output is a static site with no backend — the whole game, database
-included, is ~76 KB gzipped.
+included, is ~79 KB gzipped.
 
 ### Why Vite 6 and not 8
 
@@ -76,7 +76,8 @@ because the row generators are sport-agnostic and cost nothing to leave in.
 
 | group | examples |
 |---|---|
-| **Blend — two conditions at once** | Eastern Europe · 1980s, Africa · Dual national, 1990s · Capital-born |
+| **Blend — two conditions at once** | Eastern Europe · 1980s, Runs the play · Africa, 1990s · Capital-born |
+| **Role — the same job in both sports** | Plays up front, Runs the play, Holds the back |
 | Region | Africa, Eastern Europe, Asia & Oceania |
 | Country | 22 of them: Latvia, Lithuania, Slovenia, Greece, Ukraine, China... |
 | Born decade | Born pre-1970, Born 2000s |
@@ -116,14 +117,29 @@ that "Born 1980s" can never appear beside "Born in 1985".
 **Blends are what stopped the board being a spelling test.** Dates and letters
 were 64% of every row slot — the two least interesting things you can ask about
 an athlete. A blend asks two conditions at once ("from Eastern Europe *and* born
-in the eighties"), which is a different and harder act than either alone: 35 are
-viable and 27 fit a window, spread across all six rows. Only pairings that read
+in the eighties"), which is a different and harder act than either alone. They
+are a declared product of places, periods, biographical marks and roles: 92 are
+viable, spread across all six rows and the largest single group on the board. Only pairings that read
 as one question are generated — a region and an era is a person you can picture,
 a surname letter and a citizenship count is two questions stapled together. A
 blend is a strict subset of both its parents, so the same nesting check that
 separates a year from its pair keeps "Africa" off a board showing "Africa ·
 1990s". They carry their own group, so the per-group cap stops a board becoming
-nothing but compounds. Dates and letters are now 57%.
+nothing but compounds. Dates and letters are now 51%.
+
+**Roles are the only rows where the two columns rhyme.** A midfielder and a
+point guard are the same idea in two different games, and no other row can ask
+that. Wikidata's P413 is ~98% populated in both sports, but they use entirely
+separate entities — football's forward is `Q280658`, the NBA's small forward is
+`Q308879` — so there is no shared value to key on and the bridge is drawn by
+hand in [categories.ts](src/engine/categories.ts). Positions are stored raw
+rather than pre-bucketed, so that mapping can be rethought without another
+fetch, and filtered to a vocabulary on the way in because P413 is not confined
+to the sport an athlete is filed under: Michael Jordan carries `outfielder`.
+
+On their own the three roles are broad enough for row one and nothing else —
+279 forwards in football, 166 in the NBA — so blending is what carries them
+down the board. "At the back · Eastern Europe" is 24 and 40.
 
 Two smaller additions came out of the same measurement. **Tournament years** —
 World Cups fall on years ≡ 2 mod 4 and summer Olympics on ≡ 0 mod 4, so the two
@@ -148,12 +164,12 @@ a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
 | row | window | candidates | tightest cell, median |
 |---|---|---|---|
-| 1 | 32-300 | 33 | 46 |
-| 2 | 24-110 | 53 | 29 |
-| 3 | 16-70 | 74 | 20 |
-| 4 | 11-40 | 85 | 13 |
-| 5 | 8-24 | 56 | 10 |
-| 6 | 6-17 | 62 | 6 |
+| 1 | 32-300 | 54 | 46 |
+| 2 | 24-110 | 75 | 29 |
+| 3 | 16-70 | 96 | 20 |
+| 4 | 11-40 | 108 | 13 |
+| 5 | 8-24 | 64 | 10 |
+| 6 | 6-17 | 68 | 6 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
@@ -193,9 +209,15 @@ npx vite-node scripts/probe-gender.ts      # women per sport (see its caveat)
 
 `enrichment.json` is **generated — do not hand-edit it**. It is committed so
 builds stay offline and reproducible, and only needs regenerating when the
-roster grows. Current coverage: **99% matched, 99% with a birth year, 99% with
-gender, 99% with Wikipedia reach, 87% with height** — 20 athletes out of 1885
-remain unresolved and simply carry no decade or reach band.
+roster grows. Current coverage: **99% matched, 98% with a birth year, 99% with
+gender, 98% with Wikipedia reach, 97% with a birth city, 87% with height** — 23
+athletes out of 1885 remain unresolved and simply carry no decade or reach band.
+
+Positions (P413) read 55% across the whole database, which is the wrong number
+to look at: the other three rosters play neither football nor basketball. Across
+the two columns that are actually on the board it is **91% of footballers and
+95% of NBA players**, and a test asserts that floor because the role rows are
+the first family built on a fetched field that is not near-universal.
 
 The run also reports a **sport mismatch** list: names whose Wikidata entity plays
 a different sport from the roster file they sit in. This is the failure mode a

@@ -62,7 +62,28 @@ interface Extras {
   citizenships: number;
   birthCity?: string;
   bornInCapital: boolean;
+  positions: Set<string>;
 }
+
+/**
+ * P413 values kept, lowercased. A vocabulary rather than "whatever comes back"
+ * because P413 is not confined to the sport an athlete is filed under: Michael
+ * Jordan carries "outfielder" from his baseball detour, and taking it whole
+ * would put him in a row about basketball positions under a baseball label.
+ *
+ * Stored raw rather than pre-bucketed into attacker/playmaker/anchor, so that
+ * grouping can be rethought in the engine without paying for another fetch.
+ */
+const POSITION_VOCABULARY: ReadonlySet<string> = new Set([
+  // association football
+  'goalkeeper', 'defender', 'centre-back', 'center back', 'full-back', 'left-back',
+  'right-back', 'sweeper', 'wing-back', 'midfielder', 'defensive midfielder',
+  'central midfielder', 'attacking midfielder', 'winger', 'forward', 'centre-forward',
+  'striker', 'second striker', 'inside forward', 'wide midfielder',
+  // basketball
+  'point guard', 'shooting guard', 'small forward', 'power forward', 'center',
+  'guard', 'swingman', 'point forward', 'combo guard', 'stretch four',
+]);
 
 const nfc = (value: string): string => value.normalize('NFC');
 
@@ -267,7 +288,7 @@ async function fetchExtras(qids: string[]): Promise<Map<string, Extras>> {
     const values = qids.slice(i, i + BATCH_SIZE).map((q) => `wd:${q}`).join(' ');
     try {
       const rows = await sparql(`
-SELECT ?item ?cit ?cityLabel ?capitalOf WHERE {
+SELECT ?item ?cit ?cityLabel ?capitalOf ?posLabel WHERE {
   VALUES ?item { ${values} }
   OPTIONAL {
     ?item wdt:P27 ?cit .
@@ -280,6 +301,7 @@ SELECT ?item ?cit ?cityLabel ?capitalOf WHERE {
     ?capitalOf wdt:P31/wdt:P279* wd:Q3624078 .
     FILTER NOT EXISTS { ?capitalOf wdt:P576 ?dissolved }
   }
+  OPTIONAL { ?item wdt:P413 ?pos }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }`);
 
@@ -287,7 +309,15 @@ SELECT ?item ?cit ?cityLabel ?capitalOf WHERE {
       for (const row of rows) {
         const qid = row.item?.value.split('/').pop();
         if (!qid) continue;
-        const entry = out.get(qid) ?? { citizenships: 0, bornInCapital: false };
+        const entry = out.get(qid) ?? {
+          citizenships: 0,
+          bornInCapital: false,
+          positions: new Set<string>(),
+        };
+        if (row.posLabel) {
+          const pos = row.posLabel.value.toLowerCase().trim();
+          if (POSITION_VOCABULARY.has(pos)) entry.positions.add(pos);
+        }
         if (row.cit) {
           const set = citizenships.get(qid) ?? new Set<string>();
           set.add(row.cit.value);
@@ -421,6 +451,7 @@ async function main(): Promise<void> {
     number | null,
     string | null,
     0 | 1,
+    string | null,
   ];
   const entries: Record<string, Entry> = {};
   let heights = 0;
@@ -429,6 +460,7 @@ async function main(): Promise<void> {
   let reach = 0;
   let cities = 0;
   let duals = 0;
+  let placed = 0;
 
   for (const athlete of ATHLETES) {
     const best = chosen.get(athlete.id);
@@ -444,10 +476,11 @@ async function main(): Promise<void> {
     const citizenships = extra?.citizenships && extra.citizenships > 0 ? extra.citizenships : null;
     const birthCity = extra?.birthCity ?? null;
     const bornInCapital: 0 | 1 = extra?.bornInCapital ? 1 : 0;
+    const positions = extra && extra.positions.size > 0 ? [...extra.positions].sort().join('/') : null;
 
     if (
       height === null && birthYear === null && gender === null &&
-      sitelinks === null && citizenships === null && birthCity === null
+      sitelinks === null && citizenships === null && birthCity === null && positions === null
     ) continue;
 
     if (height !== null) heights++;
@@ -456,16 +489,19 @@ async function main(): Promise<void> {
     if (sitelinks !== null) reach++;
     if (birthCity !== null) cities++;
     if (citizenships !== null && citizenships > 1) duals++;
+    if (positions !== null) placed++;
 
-    entries[athlete.id] = [height, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital];
+    entries[athlete.id] = [
+      height, birthYear, gender, sitelinks, citizenships, birthCity, bornInCapital, positions,
+    ];
   }
 
   const pct = (n: number) => `${Math.round((100 * n) / ATHLETES.length)}%`;
   const output = {
     $schema:
-      'athleteId -> [heightCm, birthYear, gender "f"|"m", wikipediaLanguages, citizenships, birthCity, bornInCapital 0|1] — null where unknown',
+      'athleteId -> [heightCm, birthYear, gender "f"|"m", wikipediaLanguages, citizenships, birthCity, bornInCapital 0|1, positions "a/b"] — null where unknown',
     source:
-      'Wikidata (P2048 height, P569 birth, P21 gender, sitelinks, P27 citizenship, P19 birthplace, P36 capital-of-country)',
+      'Wikidata (P2048 height, P569 birth, P21 gender, sitelinks, P27 citizenship, P19 birthplace, P36 capital-of-country, P413 position)',
     athletes: ATHLETES.length,
     withHeight: heights,
     withBirthYear: births,
@@ -473,6 +509,7 @@ async function main(): Promise<void> {
     withReach: reach,
     withBirthCity: cities,
     withDualNationality: duals,
+    withPosition: placed,
     entries,
   };
 
@@ -486,6 +523,7 @@ async function main(): Promise<void> {
   console.log(`with reach   : ${reach} (${pct(reach)})`);
   console.log(`with city    : ${cities} (${pct(cities)})`);
   console.log(`dual nationals: ${duals} (${pct(duals)})`);
+  console.log(`with position: ${placed} (${pct(placed)})`);
   console.log(`unmatched    : ${unmatched.length}${unmatched.length ? ` — ${unmatched.slice(0, 10).join(', ')}` : ''}`);
   console.log(
     `wrong sport  : ${wrongSport.length}${wrongSport.length ? ` — ${wrongSport.slice(0, 20).join(', ')}` : ''}`,

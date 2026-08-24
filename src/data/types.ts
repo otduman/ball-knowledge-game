@@ -67,4 +67,11 @@ export interface Athlete {
    * capitals and would claim New York City is a capital of the United States.
    */
   bornInCapital?: boolean;
+  /**
+   * Playing positions from Wikidata P413, lowercased, filtered to a known
+   * vocabulary. Stored raw rather than pre-bucketed so the cross-sport grouping
+   * can be rethought without another fetch — and filtered because P413 happily
+   * records Michael Jordan as an outfielder.
+   */
+  positions?: string[];
 }
