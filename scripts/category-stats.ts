@@ -23,7 +23,7 @@ function windowsFor(row: (typeof rows)[number]): number[] {
 const GROUP_LABEL: Record<string, string> = {
   region: 'Region',
   country: 'Country',
-  era: 'Born (decade / year / pair / tournament)',
+  era: 'Born (decade)',
   letter: 'Letters (starts, given, ends, contains)',
   reach: 'Wikipedia reach',
   origin: 'Origin story',
@@ -31,6 +31,7 @@ const GROUP_LABEL: Record<string, string> = {
   build: 'Height',
   blend: 'Blend (two conditions at once)',
   role: 'Role (position, across both sports)',
+  cluster: 'Country cluster',
 };
 
 const byGroup = new Map<string, typeof rows>();

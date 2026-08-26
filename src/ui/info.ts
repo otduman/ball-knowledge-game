@@ -13,6 +13,7 @@ const GROUP_LABEL: Record<Category['group'], string> = {
   build: 'How tall they stand',
   blend: 'Two things at once — both must be true',
   role: 'Where they play',
+  cluster: 'A group of countries — any of them counts',
 };
 
 /**

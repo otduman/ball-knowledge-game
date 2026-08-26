@@ -22,7 +22,8 @@ export type CategoryGroup =
   | 'name'
   | 'build'
   | 'blend'
-  | 'role';
+  | 'role'
+  | 'cluster';
 
 export interface Category {
   id: string;
@@ -64,13 +65,28 @@ function surnameInitial(name: string): string {
   return parts.length > 0 ? (parts[parts.length - 1] as string).charAt(0) : '';
 }
 
-/** Countries that actually have athletes, so hints never list empty entries. */
+/** How many athletes each country has, for ordering the country lists. */
+const COUNTRY_DEPTH: ReadonlyMap<string, number> = (() => {
+  const depth = new Map<string, number>();
+  for (const athlete of ATHLETES) depth.set(athlete.country, (depth.get(athlete.country) ?? 0) + 1);
+  return depth;
+})();
+
+/**
+ * Countries that actually have athletes, deepest first.
+ *
+ * Ordered by roster depth rather than alphabetically, because the list gets
+ * truncated for the heading and the first three names are the whole message.
+ * Alphabetical made "Eastern Europe" read "Albania, Armenia, Azerbaijan +20",
+ * which names three countries with four players between them and hides Serbia,
+ * Croatia and Ukraine.
+ */
 function rosterCountriesIn(regionId: string): string[] {
   const present = new Set(ATHLETES.filter((a) => a.region === regionId).map((a) => a.country));
   return [...COUNTRY_REGION.entries()]
     .filter(([country, region]) => region === regionId && present.has(country))
     .map(([country]) => country)
-    .sort();
+    .sort((a, b) => (COUNTRY_DEPTH.get(b) ?? 0) - (COUNTRY_DEPTH.get(a) ?? 0));
 }
 
 /**
@@ -112,7 +128,7 @@ export const REGION_CATEGORIES: readonly Category[] = REGIONS.map((region) => ({
   group: 'region' as const,
   hint: rosterCountriesIn(region.id).join(', '),
   explain: true,
-  shortHint: condense(rosterCountriesIn(region.id), 3),
+  shortHint: condense(rosterCountriesIn(region.id), 5),
   matches: (athlete: Athlete) => athlete.region === region.id,
 }));
 
@@ -139,6 +155,124 @@ export const COUNTRY_CATEGORIES: readonly Category[] = COUNTRY_CANDIDATES.filter
   isViableRow(c.matches),
 );
 
+// ---- clusters ------------------------------------------------------------
+
+/**
+ * Countries grouped the way football and basketball actually talk about them,
+ * rather than by continent. "Western Europe" is a cartographer's bucket; "the
+ * former Yugoslavia" is a thing fans of both sports have opinions about, and it
+ * happens to be one of the few groupings deep on both sides of this board.
+ *
+ * Every cluster is listed member by member in the heading, because a grouping
+ * you have to guess the membership of is worse than no grouping at all. These
+ * are hand-written rather than generated: the point is that a human decided
+ * these countries belong together.
+ */
+const CLUSTERS: Array<{ id: string; label: string; phrase: string; countries: string[] }> = [
+  {
+    id: 'yugoslavia',
+    label: 'Former Yugoslavia',
+    phrase: 'from the former Yugoslavia',
+    countries: ['Serbia', 'Croatia', 'Slovenia', 'Bosnia and Herzegovina', 'Montenegro',
+      'North Macedonia'],
+  },
+  {
+    id: 'soviet',
+    label: 'Former Soviet Union',
+    phrase: 'from the former Soviet Union',
+    countries: ['Russia', 'Ukraine', 'Lithuania', 'Latvia', 'Estonia', 'Georgia', 'Belarus',
+      'Armenia', 'Azerbaijan', 'Kazakhstan', 'Uzbekistan', 'Moldova'],
+  },
+  {
+    id: 'baltic',
+    label: 'Baltic states',
+    phrase: 'from the Baltic states',
+    countries: ['Lithuania', 'Latvia', 'Estonia'],
+  },
+  {
+    id: 'iberia',
+    label: 'Iberia',
+    phrase: 'from Iberia',
+    countries: ['Spain', 'Portugal'],
+  },
+  {
+    id: 'germanic',
+    label: 'German-speaking',
+    phrase: 'from a German-speaking country',
+    countries: ['Germany', 'Austria', 'Switzerland'],
+  },
+  {
+    id: 'lowlands',
+    label: 'Low Countries',
+    phrase: 'from the Low Countries',
+    countries: ['Netherlands', 'Belgium'],
+  },
+  {
+    id: 'southern-cone',
+    label: 'Southern Cone',
+    phrase: 'from the Southern Cone',
+    countries: ['Argentina', 'Uruguay', 'Chile', 'Paraguay'],
+  },
+  {
+    id: 'west-africa',
+    label: 'West Africa',
+    phrase: 'from West Africa',
+    countries: ['Nigeria', 'Ghana', 'Senegal', 'Ivory Coast', 'Mali', 'Guinea', 'Togo',
+      'Burkina Faso', 'Benin', 'Sierra Leone', 'Liberia', 'Gambia', 'Guinea-Bissau'],
+  },
+  {
+    id: 'francophone-africa',
+    label: 'Francophone Africa',
+    phrase: 'from Francophone Africa',
+    countries: ['Senegal', 'Ivory Coast', 'Cameroon', 'Mali', 'DR Congo', 'Congo', 'Guinea',
+      'Morocco', 'Algeria', 'Tunisia', 'Togo', 'Burkina Faso', 'Benin', 'Gabon', 'Niger',
+      'Chad', 'Central African Republic', 'Madagascar'],
+  },
+  {
+    id: 'maghreb',
+    label: 'Maghreb',
+    phrase: 'from the Maghreb',
+    countries: ['Morocco', 'Algeria', 'Tunisia', 'Libya', 'Mauritania'],
+  },
+  {
+    id: 'east-asia',
+    label: 'East Asia',
+    phrase: 'from East Asia',
+    countries: ['Japan', 'South Korea', 'China', 'Taiwan', 'North Korea', 'Mongolia'],
+  },
+  {
+    id: 'caribbean',
+    label: 'Caribbean',
+    phrase: 'from the Caribbean',
+    countries: ['Dominican Republic', 'Jamaica', 'Trinidad and Tobago', 'Haiti', 'Cuba',
+      'Puerto Rico', 'Bahamas', 'Barbados', 'Curacao'],
+  },
+];
+
+/** Members that actually have athletes, most-represented first. */
+function clusterMembers(countries: string[]): string[] {
+  const depth = new Map<string, number>();
+  for (const athlete of ATHLETES) {
+    depth.set(athlete.country, (depth.get(athlete.country) ?? 0) + 1);
+  }
+  return countries.filter((c) => depth.has(c)).sort((a, b) => (depth.get(b) ?? 0) - (depth.get(a) ?? 0));
+}
+
+const CLUSTER_CANDIDATES: readonly Category[] = CLUSTERS.map((cluster) => {
+  const members = clusterMembers(cluster.countries);
+  const wanted = new Set(cluster.countries);
+  return {
+    id: `cluster:${cluster.id}`,
+    label: cluster.label,
+    axis: 'row' as const,
+    group: 'cluster' as const,
+    hint: members.join(', '),
+    explain: true,
+    shortHint: condense(members, 6),
+    matches: (athlete: Athlete) => wanted.has(athlete.country),
+  };
+});
+
 // ---- era -----------------------------------------------------------------
 
 const ERA_BANDS: Array<{ id: string; label: string; min: number; max: number }> = [
@@ -163,108 +297,6 @@ export const ERA_CATEGORIES: readonly Category[] = ERA_BANDS.map((band) => ({
   explain: false,
   matches: (athlete: Athlete) =>
     athlete.birthYear !== undefined && athlete.birthYear >= band.min && athlete.birthYear < band.max,
-}));
-
-// ---- exact birth year ----------------------------------------------------
-
-/**
- * The single most valuable row family for the deep end of the dive, and it
- * needed no new data at all.
- *
- * Depth needs rows that are narrow in *both* columns, and almost nothing is:
- * regions, decades, origin stories and name shapes are all broad in football,
- * so below the ~30-answer line the board collapsed onto surname letters and
- * small countries — 84% of deep row slots between them. An exact year is narrow
- * by construction: 22 of them field six or more in both sports and 21 of those
- * sit entirely under 30 answers.
- *
- * They share the `era` group with the decade bands deliberately. A board
- * showing "Born 1980s" beside "Born in 1985" would be asking one question
- * twice, and the group cap is what stops it.
- */
-const BIRTH_YEAR_CANDIDATES: readonly Category[] = [
-  ...new Set(ATHLETES.map((a) => a.birthYear).filter((y): y is number => y !== undefined)),
-]
-  .sort((a, b) => a - b)
-  .map((year) => ({
-    id: `era:year-${year}`,
-    label: `Born in ${year}`,
-    axis: 'row' as const,
-    group: 'era' as const,
-    hint: `Born during the calendar year ${year}`,
-    explain: false,
-    matches: (athlete: Athlete) => athlete.birthYear === year,
-  }));
-
-/**
- * Pairs of consecutive years, alongside the exact years. Singles are narrow
- * enough for the last two rows but too narrow for the middle of the board;
- * pairs land squarely in the 12-40 window that rows 3 and 4 draw from. 35 of
- * them field six a side.
- *
- * A pair strictly contains its two singles, so `buildBoard` rejects any row
- * whose answers nest inside a row already on the board. Without that check a
- * board could ask "Born in 1990" and "Born in 1990 or 1991" in the same breath.
- */
-const BIRTH_YEAR_PAIR_CANDIDATES: readonly Category[] = [
-  ...new Set(ATHLETES.map((a) => a.birthYear).filter((y): y is number => y !== undefined)),
-]
-  .sort((a, b) => a - b)
-  .map((year) => ({
-    id: `era:years-${year}-${year + 1}`,
-    label: `Born in ${year} or ${year + 1}`,
-    axis: 'row' as const,
-    group: 'era' as const,
-    hint: `Born during ${year} or ${year + 1}`,
-    explain: false,
-    matches: (athlete: Athlete) => athlete.birthYear === year || athlete.birthYear === year + 1,
-  }));
-
-// ---- tournament years ----------------------------------------------------
-
-/**
- * Row one was the thinnest window on the board — 22 candidates against 50 for
- * row six — because it wants rows that are broad in both columns, and almost
- * everything broad in football is thin in the NBA. A quarter of the roster was
- * born in a World Cup year, which is broad on both sides and, unlike "Born
- * 1990s", carries some flavour.
- *
- * World Cups fall on years congruent to 2 mod 4 and summer Olympics on 0 mod 4,
- * so the two rows are disjoint by construction and never give each other away.
- */
-const WORLD_CUP_YEARS: ReadonlySet<number> = new Set([
-  1930, 1934, 1938, 1950, 1954, 1958, 1962, 1966, 1970, 1974, 1978, 1982, 1986, 1990, 1994,
-  1998, 2002, 2006, 2010, 2014, 2018, 2022,
-]);
-
-const OLYMPIC_YEARS: ReadonlySet<number> = new Set([
-  1936, 1948, 1952, 1956, 1960, 1964, 1968, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000,
-  2004, 2008, 2012, 2016, 2021,
-]);
-
-const TOURNAMENT_CANDIDATES: readonly Category[] = [
-  {
-    id: 'era:world-cup-year',
-    label: 'World Cup year',
-    hint: 'Born in a year the football World Cup was played',
-    years: WORLD_CUP_YEARS,
-  },
-  {
-    id: 'era:olympic-year',
-    label: 'Olympic year',
-    hint: 'Born in a year the summer Olympics were held',
-    years: OLYMPIC_YEARS,
-  },
-].map((row) => ({
-  id: row.id,
-  label: row.label,
-  axis: 'row' as const,
-  group: 'era' as const,
-  hint: row.hint,
-  explain: true,
-  shortHint: row.hint,
-  matches: (athlete: Athlete) =>
-    athlete.birthYear !== undefined && row.years.has(athlete.birthYear),
 }));
 
 // ---- build ---------------------------------------------------------------
@@ -503,9 +535,19 @@ export const REACH_CATEGORIES: readonly Category[] = REACH_BANDS.map((band) => (
 // ---- origin story --------------------------------------------------------
 
 /**
- * Biographical rows measured as viable across football and the NBA. Each one
- * survived a coverage probe; the ones that did not are recorded in the README
- * so nobody re-proposes them.
+ * Biographical rows measured as viable across football and the NBA.
+ *
+ * Three of these were cut after they were played rather than measured, which is
+ * the only test that matters and the one nothing here had passed:
+ *  - "Triple national" was viable at 7 and 8 but nobody can name a footballer
+ *    by counting their passports.
+ *  - "Born in a capital" is a fact about a city, not about an athlete.
+ *  - "Shares a birth city" was worse: the pairings that justified it (Lagos
+ *    giving Osimhen and Olajuwon) are invisible from the heading, so in play it
+ *    reads as an arbitrary 311-answer bucket.
+ *
+ * Citizenship survives because it is something a fan actually knows about a
+ * player — the Boateng brothers, Eduardo, Diego Costa.
  */
 const ORIGIN_ROWS: Array<{ id: string; label: string; hint: string; matches: (a: Athlete) => boolean }> = [
   {
@@ -514,38 +556,7 @@ const ORIGIN_ROWS: Array<{ id: string; label: string; hint: string; matches: (a:
     hint: 'Holds citizenship of more than one country',
     matches: (a) => a.citizenships !== undefined && a.citizenships > 1,
   },
-  {
-    id: 'capital',
-    label: 'Born in a capital',
-    hint: 'Born in the capital city of a country',
-    matches: (a) => a.bornInCapital === true,
-  },
-  {
-    id: 'shared-city',
-    label: 'Shares a birth city',
-    hint: 'Born in the same city as another athlete in this game',
-    matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
-  },
-  {
-    id: 'triple',
-    label: 'Triple national',
-    hint: 'Holds citizenship of three or more countries',
-    matches: (a) => a.citizenships !== undefined && a.citizenships > 2,
-  },
 ];
-
-/**
- * Cities that produced more than one athlete in the roster. The pairings are
- * the appeal: Lagos gives Osimhen alongside Olajuwon, Akron gives LeBron and
- * Curry, Rosario gives Messi and Icardi.
- */
-const SHARED_BIRTH_CITIES: ReadonlySet<string> = (() => {
-  const counts = new Map<string, number>();
-  for (const athlete of ATHLETES) {
-    if (athlete.birthCity) counts.set(athlete.birthCity, (counts.get(athlete.birthCity) ?? 0) + 1);
-  }
-  return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([city]) => city));
-})();
 
 const ORIGIN_CANDIDATES: readonly Category[] = ORIGIN_ROWS.map((row) => ({
   id: `origin:${row.id}`,
@@ -773,13 +784,31 @@ interface Trait {
   matches: (a: Athlete) => boolean;
 }
 
-const PLACES: readonly Trait[] = REGIONS.map((region) => ({
-  id: region.id,
-  label: region.label,
-  phrase: `from ${region.label}`,
-  gloss: condense(rosterCountriesIn(region.id), 3),
-  matches: (a: Athlete) => a.region === region.id,
-}));
+/**
+ * Both ways of grouping countries blend. The gloss names the members rather
+ * than describing them, because on a compound heading "Former Yugoslavia ·
+ * 1990s" the only thing a player needs is the list.
+ */
+const PLACES: readonly Trait[] = [
+  ...REGIONS.map((region) => ({
+    id: region.id,
+    label: region.label,
+    phrase: `from ${region.label}`,
+    gloss: condense(rosterCountriesIn(region.id), 5),
+    matches: (a: Athlete) => a.region === region.id,
+  })),
+  ...CLUSTERS.map((cluster) => {
+    const members = clusterMembers(cluster.countries);
+    const wanted = new Set(cluster.countries);
+    return {
+      id: cluster.id,
+      label: cluster.label,
+      phrase: `${cluster.phrase} (${members.join(', ')})`,
+      gloss: condense(members, 6),
+      matches: (a: Athlete) => wanted.has(a.country),
+    };
+  }),
+];
 
 const PERIODS: readonly Trait[] = BLEND_ERAS.map((era) => ({
   id: era.id,
@@ -807,6 +836,11 @@ const ROLE_TRAITS: readonly Trait[] = ROLES.map((role) => ({
   matches: roleMatcher(role.any),
 }));
 
+/**
+ * Only citizenship survives here. Capital-born and shared-birth-city were both
+ * cut: they are facts about a city rather than about a player, and neither is
+ * something anyone knows while trying to think of a name.
+ */
 const MARKS: readonly Trait[] = [
   {
     id: 'dual',
@@ -814,20 +848,6 @@ const MARKS: readonly Trait[] = [
     phrase: 'holding more than one citizenship',
     gloss: 'more than one citizenship',
     matches: (a) => a.citizenships !== undefined && a.citizenships > 1,
-  },
-  {
-    id: 'capital',
-    label: 'Capital-born',
-    phrase: "born in a country's capital city",
-    gloss: "born in a country's capital",
-    matches: (a) => a.bornInCapital === true,
-  },
-  {
-    id: 'city',
-    label: 'Shared birth city',
-    phrase: 'born in the same city as another athlete in this game',
-    gloss: 'birth city shared with another athlete',
-    matches: (a) => a.birthCity !== undefined && SHARED_BIRTH_CITIES.has(a.birthCity),
   },
 ];
 
@@ -847,10 +867,6 @@ function blendOf(left: Trait, right: Trait): Category {
 /**
  * Which halves may be combined, declared rather than hand-looped so adding a
  * trait cannot silently mint a pairing nobody looked at.
- *
- * `capital` and `city` are never blended with each other: a capital is a large
- * city, so almost everyone born in one also shares a birth city, and the
- * compound would be a near-duplicate of `capital` alone.
  */
 const BLEND_CANDIDATES: readonly Category[] = [
   ...PLACES.flatMap((place) => PERIODS.map((period) => blendOf(place, period))),
@@ -859,8 +875,6 @@ const BLEND_CANDIDATES: readonly Category[] = [
   ...ROLE_TRAITS.flatMap((role) => PLACES.map((place) => blendOf(role, place))),
   ...ROLE_TRAITS.flatMap((role) => PERIODS.map((period) => blendOf(role, period))),
   ...ROLE_TRAITS.flatMap((role) => MARKS.map((mark) => blendOf(role, mark))),
-  blendOf(MARKS[0] as Trait, MARKS[1] as Trait),
-  blendOf(MARKS[0] as Trait, MARKS[2] as Trait),
 ];
 
 // ---- sports (columns) ----------------------------------------------------
@@ -897,11 +911,9 @@ export const GEOGRAPHIC_GROUPS: readonly CategoryGroup[] = ['region', 'country']
  */
 const ROW_CANDIDATES: readonly Category[] = [
   ...REGION_CATEGORIES,
+  ...CLUSTER_CANDIDATES,
   ...COUNTRY_CANDIDATES,
   ...ERA_CATEGORIES,
-  ...BIRTH_YEAR_CANDIDATES,
-  ...BIRTH_YEAR_PAIR_CANDIDATES,
-  ...TOURNAMENT_CANDIDATES,
   ...REACH_CATEGORIES,
   ...ORIGIN_CANDIDATES,
   ...NAME_CANDIDATES,

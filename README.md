@@ -5,13 +5,13 @@ six rows: name an athlete who fits both, fill the row, and the next one opens
 beneath it — narrower than the one above.
 
 ```
-              FOOTBALL   NBA
-EASTERN EUROPE   +        +     ▚▚▚▚▚▚   87 / 75 answers
-SHORT SURNAME    +        +     ▚▚▚▚▚·   79 / 31
-AFRICA           +        +     ▚▚▚▚··   57 / 26
-SURNAME H        +        +     ▚▚▚···   32 / 15
-BORN IN 1993     +        +     ▚▚····   24 / 11
-BORN IN 1979     +        +     ▚·····   11 / 8
+                     FOOTBALL   NBA
+PLAYS UP FRONT          +        +    1/6   279 / 166 answers
+WESTERN EUROPE          +        +    2/6    99 / 41
+FORMER YUGOSLAVIA       +        +    3/6    33 / 44
+RUNS THE PLAY · AFRICA  +        +    4/6    23 / 15
+SERBIA                  +        +    5/6     9 / 17
+LONG FULL NAME          +        +    6/6    12 / 7
 ```
 
 Fifteen guesses for the whole board, right or wrong. How far down you get is the
@@ -76,56 +76,51 @@ because the row generators are sport-agnostic and cost nothing to leave in.
 
 | group | examples |
 |---|---|
-| **Blend — two conditions at once** | Eastern Europe · 1980s, Runs the play · Africa, 1990s · Capital-born |
-| **Role — the same job in both sports** | Plays up front, Runs the play, Holds the back |
+| **Blend — two conditions at once** | Former Yugoslavia · 1990s, Runs the play · Africa, 1980s · Dual national |
+| **Country cluster** | Former Yugoslavia, Former Soviet Union, Baltic states, West Africa |
+| Role — the same job in both sports | Plays up front, Runs the play, Holds the back |
 | Region | Africa, Eastern Europe, Asia & Oceania |
 | Country | 22 of them: Latvia, Lithuania, Slovenia, Greece, Ukraine, China... |
 | Born decade | Born pre-1970, Born 2000s |
-| Born in an exact year / pair | Born in 1986, Born in 1982 or 1983 |
-| **Born in a tournament year** | World Cup year, Olympic year |
 | Surname / given-name initial | Surname E, Given name S |
 | Surname ending letter | Surname ends C, Surname ends T |
-| **Surname contains a letter** | Surname has Z, Surname has J, Surname has W |
-| **Height** | 190-194cm, 193-195cm |
+| Surname contains a letter | Surname has Z, Surname has J, Surname has W |
+| Height | 190-194cm, 193-195cm |
 | Wikipedia reach | Global name, Deep cut |
-| Origin | Dual national, Born in a capital, Shares a birth city |
+| Origin | Dual national |
 | Name shape | Known by one name, Three-part name, Surname bookends |
 
 `country -> region` resolves through one table in [regions.ts](src/data/regions.ts),
-so classification is auditable in one place. Country, letter and year rows are
+so classification is auditable in one place. Country and letter rows are
 **generated, not hand-listed**: the set grows with the roster and can never
 contain a heading no board can use.
 
-**Two families carry the tight rows, and neither needed new data.** Exact birth
-years and, alongside them, pairs of consecutive years — 35 of those field six a
-side, landing in the 12-40 window rows 3 and 4 draw from. A pair strictly
-contains its two singles, so the builder rejects any row whose answers nest
-inside a row already on the board; without that check a board could ask "Born in
-1990" and "Born in 1990 or 1991" in one breath. The third addition is the letter
-a surname *ends* with: a different question from the letter it starts with, and
-16 of the 26 are viable.
+**Clusters group countries the way the two sports actually talk about them.**
+"Western Europe" is a cartographer's bucket; "the former Yugoslavia" is a thing
+fans of both games have opinions about, and it is one of the very few groupings
+deep on both sides of this board — 33 footballers against 44 NBA players. The
+former Soviet Union is 35 and 33, the Baltic states 16 and 16. These are
+hand-written rather than generated, because the whole point is that a person
+decided these countries belong together.
 
-**Exact birth years are what made the deep end work.** Depth needs rows that are
-narrow in *both* columns, and almost nothing is — regions, decades, origin
-stories and name shapes are all broad in football, so below the ~30-answer line
-the board collapsed onto surname letters and small countries, 84% of deep row
-slots between them. An exact year is narrow by construction: 22 of them field
-six or more in both sports and 21 of those sit entirely under 30 answers. It
-needed no new data at all. Years share the `era` group with the decade bands so
-that "Born 1980s" can never appear beside "Born in 1985".
+Every cluster names its members under the heading, and so does every region: a
+grouping whose membership you have to guess is worse than no grouping. The lists
+are ordered by roster depth rather than alphabetically, because they get
+truncated to fit and the first names are the whole message — alphabetical made
+"Eastern Europe" read *"Albania, Armenia, Azerbaijan +20"*, three countries with
+four players between them, hiding Serbia, Croatia and Ukraine.
 
-**Blends are what stopped the board being a spelling test.** Dates and letters
-were 64% of every row slot — the two least interesting things you can ask about
-an athlete. A blend asks two conditions at once ("from Eastern Europe *and* born
-in the eighties"), which is a different and harder act than either alone. They
-are a declared product of places, periods, biographical marks and roles: 92 are
-viable, spread across all six rows and the largest single group on the board. Only pairings that read
-as one question are generated — a region and an era is a person you can picture,
-a surname letter and a citizenship count is two questions stapled together. A
-blend is a strict subset of both its parents, so the same nesting check that
-separates a year from its pair keeps "Africa" off a board showing "Africa ·
-1990s". They carry their own group, so the per-group cap stops a board becoming
-nothing but compounds. Dates and letters are now 51%.
+**Blends are what stopped the board being a spelling test.** A blend asks two
+conditions at once ("from the former Yugoslavia *and* born in the nineties"),
+which is a different and harder act than either alone. They are a declared
+product of places, periods, roles and citizenship: 89 are viable, spread across
+all six rows and the largest group on the board. Only pairings that read as one
+question are generated — a place and an era is a person you can picture, a
+surname letter and a citizenship count is two questions stapled together. A
+blend is a strict subset of both its parents, so a nesting check keeps
+"Eastern Europe" off any board showing "Eastern Europe · 1980s". They carry
+their own group, so the per-group cap stops a board becoming nothing but
+compounds.
 
 **Roles are the only rows where the two columns rhyme.** A midfielder and a
 point guard are the same idea in two different games, and no other row can ask
@@ -141,21 +136,30 @@ On their own the three roles are broad enough for row one and nothing else —
 279 forwards in football, 166 in the NBA — so blending is what carries them
 down the board. "At the back · Eastern Europe" is 24 and 40.
 
-Two smaller additions came out of the same measurement. **Tournament years** —
-World Cups fall on years ≡ 2 mod 4 and summer Olympics on ≡ 0 mod 4, so the two
-rows are disjoint by construction — are broad on both sides, which is what row
-one wants and what almost nothing else offers: it went from 22 candidates to 33.
-And the letter a surname *contains*, for the eight uncommon letters only; the
-common ones are viable but useless, since "Surname has A" is 438 footballers.
+### Cut after playing rather than measuring
 
-Things measured and rejected: **birth cities as rows** (not one city has six
-players in both football and the NBA), **surname length** (only one band is
-narrow enough), **fame from the `pop` field** (unanswerable at the boundary —
-a player cannot judge whether someone is famous *enough*), **cross-sport
-clubs**, **jersey numbers**, **US college**, **handedness**. Height was
-rejected once and revived: no *threshold* is playable, because "under 185cm" is
-446 footballers and 8 NBA players and fits no window, but the narrow band where
-the two distributions overlap works and gives two rows.
+Six families were measured as viable, shipped, and then removed because they
+were not *fun*. Viability is a floor, not a reason.
+
+| cut | was | why |
+|---|---|---|
+| Exact birth years | 32 rows | Nobody enjoys recalling a birth year to the year |
+| Consecutive year pairs | 33 rows | Same, with extra bookkeeping |
+| World Cup / Olympic year | 2 rows | A cute rule that reads as arbitrary in play |
+| Shares a birth city | 1 row + 14 blends | The pairings that justify it are invisible from the heading |
+| Born in a capital | 1 row + 11 blends | A fact about a city, not about an athlete |
+| Triple national | 1 row | Viable at 7 and 8, and unguessable |
+
+That is 65 of 72 date rows gone. They had been carrying the deep end — the
+windows for rows 3 and 4 fell from 96 and 108 candidates to 60 and 74 — which is
+survivable, and the clusters and role blends took up most of the slack.
+
+Things measured and rejected before shipping: **birth cities as rows**,
+**surname length**, **fame from the `pop` field** (unanswerable at the
+boundary), **cross-sport clubs**, **jersey numbers**, **US college**,
+**handedness**. Height was rejected once and revived: no *threshold* is playable,
+because "under 185cm" is 446 footballers and 8 NBA players and fits no window,
+but the narrow band where the two distributions overlap works and gives two rows.
 
 ### Rows open one at a time
 
@@ -164,12 +168,12 @@ a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
 | row | window | candidates | tightest cell, median |
 |---|---|---|---|
-| 1 | 32-300 | 54 | 46 |
-| 2 | 24-110 | 75 | 29 |
-| 3 | 16-70 | 96 | 20 |
-| 4 | 11-40 | 108 | 13 |
-| 5 | 8-24 | 64 | 10 |
-| 6 | 6-17 | 68 | 6 |
+| 1 | 32-300 | 43 | 46 |
+| 2 | 24-110 | 55 | 29 |
+| 3 | 16-70 | 60 | 20 |
+| 4 | 11-40 | 74 | 13 |
+| 5 | 8-24 | 56 | 10 |
+| 6 | 6-17 | 62 | 6 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not
