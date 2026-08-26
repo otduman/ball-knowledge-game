@@ -20,6 +20,12 @@ export interface BoardView {
   openRows: number;
   /** The row that just opened, animated in. 0 for none. */
   openingRow: number;
+  /**
+   * The cell a wrong guess was just spent on, as a `rowId|colId` key. The bar
+   * flashing at the bottom of the screen is nowhere near where the player is
+   * looking; the refusal belongs on the cell they aimed at.
+   */
+  missCell: string;
   revealed: boolean;
 }
 
@@ -133,7 +139,7 @@ function headingNode(
 }
 
 export function renderBoard(container: HTMLElement, view: BoardView, handlers: BoardHandlers): void {
-  const { board, solved, openRows, openingRow, revealed } = view;
+  const { board, solved, openRows, openingRow, missCell, revealed } = view;
   clear(container);
   container.style.gridTemplateColumns = `1.2fr repeat(${board.cols.length}, 1fr)`;
 
@@ -155,7 +161,8 @@ export function renderBoard(container: HTMLElement, view: BoardView, handlers: B
     container.append(heading);
 
     for (const col of board.cols) {
-      const solvedId = solved[cellKey(row.id, col.id)];
+      const key = cellKey(row.id, col.id);
+      const solvedId = solved[key];
       const pool = poolFor(row, col);
       let node: HTMLElement | undefined;
 
@@ -173,6 +180,7 @@ export function renderBoard(container: HTMLElement, view: BoardView, handlers: B
       }
 
       node.className += opening;
+      if (key === missCell) node.className += ' miss';
       container.append(node);
     }
   }

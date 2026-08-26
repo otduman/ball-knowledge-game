@@ -180,6 +180,23 @@ the board fell from 13% of boards to 7%. Guesses fall with it, from fifteen for
 twelve cells to twelve for ten — two spare rather than three, because a shorter
 board should not have a proportionally more generous budget.
 
+### Motion is feedback, not decoration
+
+Every animation in the game marks a moment the player caused, and nothing
+animates on its own. A correct answer stamps in with the points a beat behind
+the name, so the cell is awarded rather than merely filled. A refused guess
+shakes the cell and washes it red — the bottom bar flashes too, but the bar is
+at the far edge of the screen and the player is looking at the cell they aimed
+at, which is where the refusal belongs. The rarity score counts up rather than
+snapping, because it is the one number that rewards a good answer and a jump
+from 0 to 80 reads as a re-render. A new row fades in and fills its difficulty
+ticks left to right. The end of a board lets the verdict, the share block and
+the streak land in sequence.
+
+All of it sits behind one `prefers-reduced-motion` guard, and the score
+count-up checks that query itself rather than ticking silently under a
+`transition: none`.
+
 ### The picker confirms a name, it does not supply one
 
 `MIN_QUERY_LENGTH` is four. At two characters the search was answering the

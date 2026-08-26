@@ -1,6 +1,6 @@
 import { categoryById } from '../engine/categories';
 import type { DiveState } from '../engine/dive';
-import { applyGuess, boardFor, createDive, totalScore, usedAthleteIds } from '../engine/dive';
+import { applyGuess, boardFor, cellKey, createDive, totalScore, usedAthleteIds } from '../engine/dive';
 import type { Board } from '../engine/grid';
 import { loadHistory, streaksFor } from '../engine/history';
 import { MAX_DEPTH } from '../engine/levels';
@@ -20,6 +20,10 @@ export class App {
   private board: Board;
   /** Set for one render only, so the newly opened row animates and nothing else does. */
   private openingRow = 0;
+  /** Likewise for the cell a wrong guess was just spent on. */
+  private missCell = '';
+  /** What the score readout currently shows, so it can be counted up rather than snapped. */
+  private shownScore = 0;
 
   constructor(private readonly day: number) {
     this.state = loadDive(day, 0) ?? createDive(day, 0);
@@ -34,7 +38,7 @@ export class App {
 
     byId('issue').textContent = this.board.label;
     byId('left').textContent = String(this.state.guessesLeft);
-    byId('score').textContent = String(totalScore(this.state));
+    this.countScoreTo(totalScore(this.state));
     byId('strap-rules').textContent = ended
       ? 'Board over.'
       : `Row ${this.state.openRows} of ${MAX_DEPTH}. Fill it to open the next.`;
@@ -46,6 +50,7 @@ export class App {
         solved: this.state.solved,
         openRows: this.state.openRows,
         openingRow: this.openingRow,
+        missCell: this.missCell,
         revealed: ended,
       },
       {
@@ -57,6 +62,7 @@ export class App {
       },
     );
     this.openingRow = 0;
+    this.missCell = '';
 
     // Results record the day before the streak is read, so finishing a board
     // updates the masthead in the same paint that shows the verdict.
@@ -107,6 +113,7 @@ export class App {
       toast(`${outcome.athlete.name} — +${outcome.points}`);
       if (outcome.opened) this.openingRow = this.state.openRows;
     } else {
+      this.missCell = cellKey(rowId, colId);
       this.flashMiss();
       toast(`${outcome.athlete.name} does not fit that cell`);
     }
@@ -123,6 +130,39 @@ export class App {
     if (!bar) return;
     bar.classList.add('flash-miss');
     window.setTimeout(() => bar.classList.remove('flash-miss'), 320);
+  }
+
+  /**
+   * Walks the score up instead of snapping it. A rarity score is the one number
+   * on screen that rewards a good answer, and a jump from 0 to 88 reads as a
+   * re-render rather than as something earned.
+   */
+  private countScoreTo(target: number): void {
+    const node = byId('score');
+    const from = this.shownScore;
+    this.shownScore = target;
+
+    if (from === target) {
+      node.textContent = String(target);
+      return;
+    }
+    // jsdom has no rAF worth driving, and a player who asked for less motion
+    // should not watch a number tick either.
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (reduced || typeof window.requestAnimationFrame !== 'function') {
+      node.textContent = String(target);
+      return;
+    }
+
+    const started = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / 420);
+      // Ease out, so it lands softly rather than stopping dead.
+      const eased = 1 - (1 - t) * (1 - t);
+      node.textContent = String(Math.round(from + (target - from) * eased));
+      if (t < 1) window.requestAnimationFrame(step);
+    };
+    window.requestAnimationFrame(step);
   }
 
   /** A fresh practice board for the same day. The daily board stays at variant 0. */
