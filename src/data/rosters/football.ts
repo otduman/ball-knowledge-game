@@ -764,5 +764,90 @@ Tomas Danilevicius|Lithuania|6
 Vitalijs Astafjevs|Latvia|5
 Vykintas Slivka|Lithuania|3
 
+# ---- modern stars and recent internationals ----
+Albert Gudmundsson|Iceland|7
+Ansu Fati|Spain|14
+Anthony Gordon|England|10
+Antonio Nusa|Norway|6
+Antony|Brazil|12
+Bradley Barcola|France|10
+Brahim Diaz|Morocco|11
+Calvin Bassey|Nigeria|7
+Cengiz Under|Turkiye|8
+Cesar Montes|Mexico|6
+Christoph Baumgartner|Austria|7
+Christos Tzolis|Greece|5
+Conor Gallagher|England|10
+Deniz Undav|Germany|8
+Denzel Dumfries|Netherlands|11
+Diogo Costa|Portugal|10
+Eberechi Eze|England|11
+Endrick|Brazil|14
+Ezri Konsa|England|7
+Fabian Ruiz|Spain|12
+Ferran Torres|Spain|15
+Gabriel Magalhaes|Brazil|12
+Gabriel Martinelli|Brazil|14
+Georges Mikautadze|Georgia|6
+Giorgi Mamardashvili|Georgia|8
+Giovani Lo Celso|Argentina|10
+Giovanni Di Lorenzo|Italy|10
+Gudmundur Thorarinsson|Iceland|4
+Ibrahima Konate|France|12
+Idrissa Gueye|Senegal|10
+Ismael Bennacer|Algeria|9
+Ivan Toney|England|12
+Jakub Kiwior|Poland|6
+Jeremie Frimpong|Netherlands|9
+Joakim Maehle|Denmark|7
+Jonathan Tah|Germany|10
+Karl Toko Ekambi|Cameroon|7
+Kobbie Mainoo|England|12
+Kostas Tsimikas|Greece|8
+Leon Goretzka|Germany|14
+Levi Colwill|England|8
+Lucas Hernandez|France|12
+Lucas Paqueta|Brazil|13
+Manuel Locatelli|Italy|10
+Marc Cucurella|Spain|14
+Marc Guehi|England|9
+Marquinhos|Brazil|16
+Michael Olise|France|12
+Mikel Merino|Spain|12
+Milos Kerkez|Hungary|6
+Nahuel Molina|Argentina|10
+Nathan Ake|Netherlands|12
+Nico Schlotterbeck|Germany|8
+Nicola Zalewski|Poland|6
+Nicolas Jackson|Senegal|10
+Nicolas Tagliafico|Argentina|10
+Niklas Sule|Germany|11
+Nikola Milenkovic|Serbia|8
+Noussair Mazraoui|Morocco|9
+Nuno Mendes|Portugal|12
+Odysseas Vlachodimos|Greece|6
+Randal Kolo Muani|France|12
+Reece James|England|14
+Riccardo Calafiori|Italy|8
+Richard Rios|Colombia|6
+Robert Andrich|Germany|7
+Robin Le Normand|Spain|8
+Said Benrahma|Algeria|8
+Serge Aurier|Ivory Coast|8
+Stefan Savic|Montenegro|8
+Steven Bergwijn|Netherlands|9
+Strahinja Pavlovic|Serbia|6
+Tajon Buchanan|Canada|6
+Takehiro Tomiyasu|Japan|9
+Willi Orban|Hungary|6
+
+# ---- legends and retired names ----
+Alessandro Nesta|Italy|14
+Claude Makelele|France|14
+Dennis Law|Scotland|8
+Franco Baresi|Italy|16
+Frank Rijkaard|Netherlands|14
+Kolo Toure|Ivory Coast|12
+
 `,
 );

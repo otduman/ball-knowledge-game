@@ -16,8 +16,13 @@ describe('text normalisation', () => {
 });
 
 describe('searchAthletes', () => {
-  it('ignores queries shorter than two characters', () => {
+  it('stays silent until the query is long enough to be a real guess', () => {
+    // The picker used to answer the board for you: "ha" listed Haaland and
+    // Harden, so an unknown cell was solvable by reading the options.
     expect(searchAthletes('m')).toEqual([]);
+    expect(searchAthletes('ha')).toEqual([]);
+    expect(searchAthletes('mes')).toEqual([]);
+    expect(searchAthletes('mess').map((a) => a.name)).toContain('Lionel Messi');
   });
 
   it('finds a player by surname prefix', () => {
@@ -33,7 +38,6 @@ describe('searchAthletes', () => {
   it('matches nicknames and alternate spellings', () => {
     expect(searchAthletes('chicharito').map((a) => a.name)).toContain('Javier Hernandez');
     expect(searchAthletes('greek freak').map((a) => a.name)).toContain('Giannis Antetokounmpo');
-    expect(searchAthletes('checo').map((a) => a.name)).toContain('Sergio Perez');
   });
 
   it('ranks the exact name above incidental substring matches', () => {
@@ -48,6 +52,6 @@ describe('searchAthletes', () => {
   });
 
   it('respects the result limit', () => {
-    expect(searchAthletes('an', { limit: 5 }).length).toBeLessThanOrEqual(5);
+    expect(searchAthletes('ande', { limit: 3 }).length).toBeLessThanOrEqual(3);
   });
 });

@@ -58,7 +58,7 @@ function condense(items: string[], keep: number): string {
 /** A row must clear this in at least `MIN_VIABLE_COLUMNS` sports to be usable. */
 export const MIN_ROW_POOL = 6;
 const MIN_POOL = MIN_ROW_POOL;
-const MIN_VIABLE_COLUMNS = 3;
+const MIN_VIABLE_COLUMNS = 2;
 
 function surnameInitial(name: string): string {
   const parts = tokens(name);
@@ -882,9 +882,6 @@ const BLEND_CANDIDATES: readonly Category[] = [
 const SPORT_HINTS: Record<SportId, string> = {
   football: 'Played professional football (soccer)',
   nba: 'Played in the NBA',
-  ufc: 'Fought in the UFC',
-  f1: 'Started a Formula 1 Grand Prix',
-  tennis: 'Played professional tennis',
 };
 
 export const SPORT_CATEGORIES: readonly Category[] = SPORTS.map((sport) => ({

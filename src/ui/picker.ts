@@ -13,7 +13,8 @@ export interface PickerRequest {
   onPick(athlete: Athlete): void;
 }
 
-const RESULT_LIMIT = 8;
+/** Five, not eight: a long list is a menu to browse rather than a spelling check. */
+const RESULT_LIMIT = 5;
 
 export class Picker {
   private readonly scrim = byId<HTMLDivElement>('scrim');
@@ -70,6 +71,7 @@ export class Picker {
 
     this.input.value = '';
     this.setResults([]);
+    this.syncHint();
 
     this.scrim.hidden = false;
     this.sheet.hidden = false;
@@ -100,6 +102,20 @@ export class Picker {
         limit: RESULT_LIMIT,
       }),
     );
+    this.syncHint();
+  }
+
+  /**
+   * Says why the list is empty while the query is still too short. Without it a
+   * silent box reads as "no such player" and the guess gets abandoned.
+   */
+  private syncHint(): void {
+    const typed = this.input.value.trim().length;
+    const hint = byId('hint');
+    hint.textContent =
+      typed > 0 && typed < MIN_QUERY_LENGTH
+        ? `Keep going — ${MIN_QUERY_LENGTH} letters before the list appears`
+        : 'Pick from the list. A wrong name costs a guess.';
   }
 
   private setResults(results: Athlete[]): void {

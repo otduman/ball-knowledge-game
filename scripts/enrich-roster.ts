@@ -38,9 +38,6 @@ const DELAY_MS = 900;
 const SPORT_QIDS: Record<SportId, string[]> = {
   football: ['Q2736'],
   nba: ['Q5372'],
-  ufc: ['Q114466', 'Q11417'],
-  f1: ['Q1968', 'Q5386'],
-  tennis: ['Q847'],
 };
 
 const HEIGHT_MIN_CM = 120;

@@ -193,12 +193,14 @@ describe('attribute categories', () => {
     expect(multi.map((a) => a.name)).toEqual([]);
   });
 
-  it('leaves no dead row category that can never fill three columns', () => {
+  it('leaves no dead row category that cannot fill both columns', () => {
+    // Two columns now, not five: the board is Football x NBA and the other
+    // three rosters are gone, so "viable" means viable in both.
     const dead = ROW_CATEGORIES.filter((row) => {
       const usable = COL_CATEGORIES.filter(
         (col) => poolFor(row, col).length >= MIN_ROW_POOL,
       ).length;
-      return usable < 3;
+      return usable < 2;
     });
     expect(dead.map((c) => c.label)).toEqual([]);
   });
@@ -218,7 +220,8 @@ describe('Wikipedia reach', () => {
     // A fame proxy that does not surface these is not measuring fame.
     expect(top).toContain('Lionel Messi');
     expect(top).toContain('Cristiano Ronaldo');
-    expect(top.some((n) => ['Roger Federer', 'Rafael Nadal', 'Novak Djokovic'].includes(n))).toBe(true);
+    expect(top.some((n) => ['LeBron James', 'Michael Jordan', 'Kobe Bryant', 'Pele',
+      'Diego Maradona', 'Zinedine Zidane'].includes(n))).toBe(true);
   });
 
   it('keeps the two bands disjoint and never matches an athlete with no data', () => {
@@ -237,7 +240,7 @@ describe('Wikipedia reach', () => {
     const byName = (n: string) => ATHLETES.find((a) => a.name === n)!;
 
     expect(global.matches(byName('Lionel Messi'))).toBe(true);
-    expect(global.matches(byName('Michael Schumacher'))).toBe(true);
+    expect(global.matches(byName('LeBron James'))).toBe(true);
     expect(deep.matches(byName('Lionel Messi'))).toBe(false);
   });
 
@@ -251,12 +254,12 @@ describe('Wikipedia reach', () => {
 });
 
 describe('origin and name rows', () => {
-  it('only keeps rows that can fill three columns', () => {
+  it('only keeps rows that can fill both columns', () => {
     for (const row of [...ORIGIN_CATEGORIES, ...NAME_CATEGORIES]) {
       const usable = COL_CATEGORIES.filter(
         (col) => poolFor(row, col).length >= MIN_ROW_POOL,
       ).length;
-      expect(usable, `${row.label}`).toBeGreaterThanOrEqual(3);
+      expect(usable, `${row.label}`).toBeGreaterThanOrEqual(2);
     }
   });
 

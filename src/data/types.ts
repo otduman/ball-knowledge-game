@@ -1,4 +1,4 @@
-export type SportId = 'football' | 'nba' | 'ufc' | 'f1' | 'tennis';
+export type SportId = 'football' | 'nba';
 
 export type RegionId =
   | 'africa'

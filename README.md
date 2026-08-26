@@ -27,7 +27,7 @@ npm run build      # typecheck, then bundle to dist/
 ```
 
 The build output is a static site with no backend — the whole game, database
-included, is ~79 KB gzipped.
+included, is ~65 KB gzipped.
 
 ### Why Vite 6 and not 8
 
@@ -52,9 +52,10 @@ That does not scale: adding a region means writing a new list per sport, and the
 same player can drift between classifications.
 
 Here each athlete is a record, and categories are predicates over those records.
-A cell's pool is the intersection of two of them. This is what made tennis cheap
-to add — one roster file plus one line in `sports.ts`, no engine changes — and
-what makes a new axis a matter of adding categories. A whole row of the board is
+A cell's pool is the intersection of two of them. This is what made adding a
+whole sport cheap — one roster file plus one line in `sports.ts`, no engine
+changes — and, when three of them were cut again, what made removing one cheap
+too. It is also what makes a new axis a matter of adding categories. A whole row of the board is
 a pool window plus a group cap: see [levels.ts](src/engine/levels.ts).
 
 Rosters live in [src/data/rosters/](src/data/rosters/) as pipe-delimited text:
@@ -68,9 +69,10 @@ Sadio Mane|Senegal|30|Sadio Mané
 cell. Rarity score is `100 - pop`, so an obvious pick is worth ~45 and a deep cut
 ~97. A malformed row throws at module load rather than disappearing silently.
 
-Current database: **1885 athletes** — 730 football, 384 NBA, 264 UFC, 199 F1,
-300 tennis. Football and the NBA are the two columns; the other rosters are kept
-because the row generators are sport-agnostic and cost nothing to leave in.
+Current database: **1374 athletes** — 811 football, 563 NBA, and nothing else.
+UFC, Formula 1 and tennis were removed: 763 athletes and 40% of the shipped data
+that no board could ever reach on a two-column game. The bundle fell from 79 KB
+to 65 KB gzipped in the same commit that added 260 players.
 
 ### Rows
 
@@ -151,8 +153,13 @@ were not *fun*. Viability is a floor, not a reason.
 | Triple national | 1 row | Viable at 7 and 8, and unguessable |
 
 That is 65 of 72 date rows gone. They had been carrying the deep end — the
-windows for rows 3 and 4 fell from 96 and 108 candidates to 60 and 74 — which is
-survivable, and the clusters and role blends took up most of the slack.
+windows for rows 3 and 4 fell from 96 and 108 candidates to 60 and 74. The
+roster expansion that followed took them back to 72 and 81.
+
+Row six went the other way, 62 candidates down to 54, and that is not a
+regression to fix by adding more players: a bigger roster pushes rows *out* of
+the tight 6-17 band from below. The bottom of a six-row board is the part the
+data struggles to feed.
 
 Things measured and rejected before shipping: **birth cities as rows**,
 **surname length**, **fame from the `pop` field** (unanswerable at the
@@ -161,6 +168,16 @@ boundary), **cross-sport clubs**, **jersey numbers**, **US college**,
 because "under 185cm" is 446 footballers and 8 NBA players and fits no window,
 but the narrow band where the two distributions overlap works and gives two rows.
 
+### The picker confirms a name, it does not supply one
+
+`MIN_QUERY_LENGTH` is four. At two characters the search was answering the
+board: typing "ha" listed Haaland, Harden and Hardaway, so a cell you could not
+name was solvable by trying a couple of letters and reading the options. Four
+means you arrive with a name in mind and the list checks your spelling. The
+result list is five long rather than eight for the same reason, and the sheet
+says why it is empty while the query is still short — a silent box reads as "no
+such player" and the guess gets abandoned.
+
 ### Rows open one at a time
 
 [levels.ts](src/engine/levels.ts) defines each row as a pool window. What makes
@@ -168,12 +185,12 @@ a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
 | row | window | candidates | tightest cell, median |
 |---|---|---|---|
-| 1 | 32-300 | 43 | 46 |
-| 2 | 24-110 | 55 | 29 |
-| 3 | 16-70 | 60 | 20 |
-| 4 | 11-40 | 74 | 13 |
-| 5 | 8-24 | 56 | 10 |
-| 6 | 6-17 | 62 | 6 |
+| 1 | 32-300 | 63 | 46 |
+| 2 | 24-110 | 71 | 29 |
+| 3 | 16-70 | 72 | 20 |
+| 4 | 11-40 | 81 | 13 |
+| 5 | 8-24 | 59 | 10 |
+| 6 | 6-17 | 54 | 6 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not

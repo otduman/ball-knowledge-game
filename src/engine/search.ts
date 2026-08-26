@@ -19,7 +19,14 @@ const INDEX: readonly IndexEntry[] = ATHLETES.map((athlete) => {
   };
 }).sort((a, b) => a.athlete.name.localeCompare(b.athlete.name));
 
-export const MIN_QUERY_LENGTH = 2;
+/**
+ * Four rather than two. At two characters the picker was answering the board
+ * for you: "ha" listed Haaland, Halland and Harden, so a cell you could not
+ * name was solvable by typing the first two letters of a guess and reading the
+ * options. Four means you have to arrive with a name in mind, and the list
+ * confirms the spelling rather than supplying the answer.
+ */
+export const MIN_QUERY_LENGTH = 4;
 
 export interface SearchOptions {
   /** Athlete ids already placed on the board; they never appear again. */

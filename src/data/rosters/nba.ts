@@ -416,5 +416,188 @@ Walter Tavares|Cape Verde|4
 Wenyen Gabriel|South Sudan|5
 Yuta Tabuse|Japan|6
 
+# ---- American greats and modern starters missing from the roster ----
+Aaron Gordon|United States|11
+Adrian Dantley|United States|9
+Al Jefferson|United States|7
+Alex English|United States|9
+Alonzo Mourning|United States|20
+Amare Stoudemire|United States|17
+Amen Thompson|United States|6
+Andrew Nembhard|Canada|5
+Antawn Jamison|United States|10
+Anthony Black|United States|4
+Antoine Walker|United States|10
+Antonio McDyess|United States|7
+Artis Gilmore|United States|8
+Ausar Thompson|United States|5
+Austin Reaves|United States|9
+Baron Davis|United States|12
+Ben Wallace|United States|15
+Bernard King|United States|12
+Bill Laimbeer|United States|11
+Bill Walton|United States|14
+Bob Cousy|United States|14
+Bob McAdoo|United States|10
+Bobby Portis|United States|7
+Brandon Ingram|United States|12
+Brandon Miller|United States|6
+Brook Lopez|United States|12
+CJ McCollum|United States|11
+Cam Whitmore|United States|4
+Chauncey Billups|United States|15
+Chris Mullin|United States|14
+Chris Webber|United States|22
+Christian Braun|United States|5
+Clyde Drexler|United States|22
+Dalton Knecht|United States|4
+Dan Issel|United States|7
+Danny Ainge|United States|10
+Dave Bing|United States|8
+Dave Cowens|United States|10
+David West|United States|8
+DeMar DeRozan|United States|18
+Dennis Johnson|United States|9
+Derrick White|United States|9
+Desmond Bane|United States|8
+Devin Vassell|United States|5
+Dominique Wilkins|United States|22
+Donovan Clingan|United States|4
+Earl Monroe|United States|10
+Elgin Baylor|United States|14
+Elvin Hayes|United States|10
+Emeka Okafor|United States|7
+Evan Mobley|United States|10
+Gary Payton|United States|24|The Glove
+George Gervin|United States|14|The Iceman
+Gilbert Arenas|United States|14
+Glen Rice|United States|11
+Gordon Hayward|United States|11
+Grant Hill|United States|18
+Hal Greer|United States|6
+Herbert Jones|United States|5
+Immanuel Quickley|United States|6
+Jabari Smith Jr|United States|6
+Jaime Jaquez|United States|5
+Jalen Duren|United States|5
+Jalen Green|United States|10
+Jalen Suggs|United States|7
+Jalen Williams|United States|9
+Jamal Mashburn|United States|8
+James Worthy|United States|18
+Jared McCain|United States|4
+Jaren Jackson Jr|United States|10
+Jarrett Allen|United States|8
+Jason Kidd|United States|22
+Jerry Lucas|United States|7
+Joe Dumars|United States|14
+Joe Johnson|United States|10
+John Havlicek|United States|14
+Josh Hart|United States|7
+Josh Smith|United States|9
+Jrue Holiday|United States|14
+Julius Randle|United States|11
+Juwan Howard|United States|10
+Keegan Murray|United States|6
+Kel'el Ware|United States|4
+Kelly Oubre Jr|United States|6
+Kenny Anderson|United States|7
+Kevin Love|United States|16
+Kevin McHale|United States|20
+Khris Middleton|United States|13
+Kyle Lowry|United States|15
+LaMarcus Aldridge|United States|14
+Larry Johnson|United States|10
+Larry Nance|United States|8
+Latrell Sprewell|United States|12
+Malik Monk|United States|7
+Marcus Smart|United States|10
+Mark Aguirre|United States|7
+Mark Williams|United States|4
+Metta World Peace|United States|14|Ron Artest
+Michael Porter Jr|United States|9
+Michael Redd|United States|9
+Mikal Bridges|United States|10
+Mitch Richmond|United States|11
+Moses Malone|United States|22
+Myles Turner|United States|9
+Nate Archibald|United States|8|Tiny Archibald
+Naz Reid|United States|6
+Nic Claxton|United States|6
+Norman Powell|United States|7
+Onyeka Okongwu|United States|5
+Payton Pritchard|United States|7
+Penny Hardaway|United States|15|Anfernee Hardaway
+Pete Maravich|United States|18|Pistol Pete
+Rasheed Wallace|United States|14
+Reed Sheppard|United States|4
+Richard Hamilton|United States|11
+Rick Barry|United States|12
+Robert Parish|United States|16
+Robin Lopez|United States|7
+Ron Holland|United States|3
+Rudy Gay|United States|9
+Sam Jones|United States|7
+Scottie Barnes|United States|10
+Shawn Kemp|United States|18|Reign Man
+Shawn Marion|United States|12
+Sidney Moncrief|United States|7
+Spencer Haywood|United States|8
+Stephon Castle|United States|5
+Stephon Marbury|United States|12
+Steve Francis|United States|10
+Terry Cummings|United States|6
+Tim Hardaway|United States|14
+Tom Chambers|United States|6
+Tyler Herro|United States|11
+Tyrese Maxey|United States|12
+Victor Oladipo|United States|10
+Walker Kessler|United States|5
+Walt Frazier|United States|14
+Wes Unseld|United States|10
+Willis Reed|United States|12
+
+# ---- international players who actually appeared in an NBA game ----
+Adam Mokoka|France|3
+Adem Bona|Nigeria|4
+Al-Farouq Aminu|Nigeria|6
+Angel Delgado|Dominican Republic|3
+Ariel Hukporti|Germany|3
+Arturas Karnisovas|Lithuania|4
+Axel Toupane|France|3
+Bruno Fernando|Angola|4
+Chimezie Metu|Nigeria|4
+Cui Yongxi|China|3
+Deividas Sirvydis|Lithuania|3
+Filip Petrusev|Serbia|4
+Gabe Vincent|Nigeria|6
+Ibou Badji|Senegal|3
+Ignas Brazdeikis|Lithuania|4
+Ike Diogu|Nigeria|4
+Johnny Furphy|Australia|3
+Jonathan Kuminga|DR Congo|8
+Jordan Clarkson|Philippines|8
+Jordan Nwora|Nigeria|4
+Karlo Matkovic|Bosnia and Herzegovina|3
+Luka Samanic|Croatia|3
+Martynas Andriuskevicius|Lithuania|3
+Mindaugas Kuzminskas|Lithuania|4
+Miroslav Raduljica|Serbia|3
+Moussa Diabate|France|3
+Nando de Colo|France|5
+Nicolas Brussino|Argentina|3
+Nikola Mirotic|Spain|9
+Omer Yurtseven|Turkiye|5
+Onuralp Bitim|Turkiye|3
+Pape Sy|Senegal|3
+Pavel Podkolzin|Russia|3
+Petr Cornelie|France|3
+Rayan Rupert|France|3
+Shane Larkin|Turkiye|4
+Sidy Cissoko|France|3
+Tristan da Silva|Germany|5
+Tyler Dorsey|Greece|4
+Zeljko Rebraca|Serbia|4
+
 `,
 );
