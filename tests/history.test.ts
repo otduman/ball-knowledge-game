@@ -106,12 +106,12 @@ describe('recording', () => {
   });
 
   it('discards corrupt entries instead of throwing', () => {
-    window.localStorage.setItem('bk:v4:history', '[{"day":"x"},{"day":4,"cleared":1,"score":9,"solved":2}]');
+    window.localStorage.setItem('bk:v5:history', '[{"day":"x"},{"day":4,"cleared":1,"score":9,"solved":2}]');
     expect(loadHistory().map((e) => e.day)).toEqual([4]);
   });
 
   it('survives malformed json', () => {
-    window.localStorage.setItem('bk:v4:history', '{not json');
+    window.localStorage.setItem('bk:v5:history', '{not json');
     expect(loadHistory()).toEqual([]);
   });
 });

@@ -1,20 +1,19 @@
 # Ball Knowledge
 
 A daily football and basketball board that opens one row at a time. Two columns,
-six rows: name an athlete who fits both, fill the row, and the next one opens
+five rows: name an athlete who fits both, fill the row, and the next one opens
 beneath it — narrower than the one above.
 
 ```
                      FOOTBALL   NBA
-PLAYS UP FRONT          +        +    1/6   279 / 166 answers
-WESTERN EUROPE          +        +    2/6    99 / 41
-FORMER YUGOSLAVIA       +        +    3/6    33 / 44
-RUNS THE PLAY · AFRICA  +        +    4/6    23 / 15
-SERBIA                  +        +    5/6     9 / 17
-LONG FULL NAME          +        +    6/6    12 / 7
+BORN 1980S              +        +    1/5   173 / 134 answers
+FORMER YUGOSLAVIA       +        +    2/5    33 / 44
+AT THE BACK · AFRICA    +        +    3/5    15 / 24
+SOUTHERN CONE · DUAL    +        +    4/5    14 / 10
+UKRAINE                 +        +    5/5    11 / 6
 ```
 
-Fifteen guesses for the whole board, right or wrong. How far down you get is the
+Twelve guesses for the whole board, right or wrong. How far down you get is the
 score; rarity is the tiebreaker.
 
 ## Running it
@@ -116,7 +115,7 @@ four players between them, hiding Serbia, Croatia and Ukraine.
 conditions at once ("from the former Yugoslavia *and* born in the nineties"),
 which is a different and harder act than either alone. They are a declared
 product of places, periods, roles and citizenship: 89 are viable, spread across
-all six rows and the largest group on the board. Only pairings that read as one
+all five rows and the largest group on the board. Only pairings that read as one
 question are generated — a place and an era is a person you can picture, a
 surname letter and a citizenship count is two questions stapled together. A
 blend is a strict subset of both its parents, so a nesting check keeps
@@ -156,10 +155,9 @@ That is 65 of 72 date rows gone. They had been carrying the deep end — the
 windows for rows 3 and 4 fell from 96 and 108 candidates to 60 and 74. The
 roster expansion that followed took them back to 72 and 81.
 
-Row six went the other way, 62 candidates down to 54, and that is not a
-regression to fix by adding more players: a bigger roster pushes rows *out* of
-the tight 6-17 band from below. The bottom of a six-row board is the part the
-data struggles to feed.
+Row six went the other way, 62 candidates down to 54, and adding players made it
+*worse*: a bigger roster pushes rows up out of a tight band from below. That row
+is now gone — see below.
 
 Things measured and rejected before shipping: **birth cities as rows**,
 **surname length**, **fame from the `pop` field** (unanswerable at the
@@ -167,6 +165,20 @@ boundary), **cross-sport clubs**, **jersey numbers**, **US college**,
 **handedness**. Height was rejected once and revived: no *threshold* is playable,
 because "under 185cm" is 446 footballers and 8 NBA players and fits no window,
 but the narrow band where the two distributions overlap works and gives two rows.
+
+### Five rows, not six
+
+The sixth row was the one the data could not feed. Its 6-17 band held 54
+candidates against 81 in the middle of the board, and the roster expansion made
+it worse rather than better — a bigger roster pushes rows *up* out of a tight
+band from below, so the bottom of a six-row board gets thinner as the database
+grows. Boards were repeating their last row every eighth day.
+
+Cutting it and re-spreading the same difficulty arc across five windows fixed
+that: the bottom row went from 54 candidates to 78, and the most-repeated row on
+the board fell from 13% of boards to 7%. Guesses fall with it, from fifteen for
+twelve cells to twelve for ten — two spare rather than three, because a shorter
+board should not have a proportionally more generous budget.
 
 ### The picker confirms a name, it does not supply one
 
@@ -183,14 +195,13 @@ such player" and the guess gets abandoned.
 [levels.ts](src/engine/levels.ts) defines each row as a pool window. What makes
 a row hard is the **ceiling** on how many answers a cell accepts, not the floor:
 
-| row | window | candidates | tightest cell, median |
-|---|---|---|---|
-| 1 | 32-300 | 63 | 46 |
-| 2 | 24-110 | 71 | 29 |
-| 3 | 16-70 | 72 | 20 |
-| 4 | 11-40 | 81 | 13 |
-| 5 | 8-24 | 59 | 10 |
-| 6 | 6-17 | 54 | 6 |
+| row | window | candidates |
+|---|---|---|
+| 1 | 32-300 | 63 |
+| 2 | 22-110 | 81 |
+| 3 | 14-65 | 81 |
+| 4 | 9-32 | 71 |
+| 5 | 6-22 | 78 |
 
 A ceiling rather than a floor because two columns of football and basketball —
 the two deepest rosters in the game — are *easier* than a five-sport 3x3, not

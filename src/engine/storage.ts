@@ -4,9 +4,11 @@ import { cellKey, isRowComplete } from './dive';
 import { buildBoard } from './grid';
 import { MAX_DEPTH, STARTING_GUESSES } from './levels';
 
-// v4 stores a board that grows row by row. Earlier saves describe games that no
-// longer exist, so the prefix change discards them.
-const VERSION = 4;
+// v5 is a five-row board with a twelve-guess budget. A v4 save describes a
+// six-row game: its `guessesLeft` can exceed the new maximum and its solved
+// cells reference a sixth row that no longer exists, so the prefix change
+// discards them rather than half-loading one.
+const VERSION = 5;
 export const PREFIX = `bk:v${VERSION}`;
 
 function storageKey(day: number, variant: number): string {
